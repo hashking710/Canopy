@@ -24,6 +24,20 @@ Real data from Canopy's own [live demo](https://cdemo.hkdev.run) — see
 [docs/screenshots.md](docs/screenshots.md) for a full tour of every page (facility,
 room detail, compliance, harvests, lab results, alerts, and more).
 
+## Get a Pi running in one command
+
+Flash [Raspberry Pi OS Lite](https://www.raspberrypi.com/software/) with SSH
+enabled, SSH in, then:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hashking710/Canopy/main/deploy/install.sh | bash
+```
+
+Installs Docker if needed and brings the dashboard up — see
+[docs/os-image.md](docs/os-image.md) for the full walkthrough, including a
+zero-SSH first-boot option. To try it locally first instead of on real
+hardware, see "Running with Docker" just below.
+
 ## Which setup do I need?
 
 - **One Pi, one or two tents (most home growers)**: just `edge-agent` + `frontend`.
@@ -255,6 +269,8 @@ reverse proxy with a real certificate for anything reachable beyond your LAN.
 
 - [docs/architecture.md](docs/architecture.md) — the full roadmap: what's built,
   what's in progress, and what's explicitly not started, phase by phase.
+- [docs/os-image.md](docs/os-image.md) — getting Canopy onto a Raspberry Pi with
+  one command, plus a zero-SSH first-boot option.
 - [docs/screenshots.md](docs/screenshots.md) — a full visual tour of every page in
   the dashboard, from Canopy's own live demo.
 - [docs/plugin-development.md](docs/plugin-development.md) — the sensor-adapter
