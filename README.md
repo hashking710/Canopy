@@ -1,5 +1,8 @@
 # Canopy
 
+[Website](https://canopy.hkdev.run) · [Live demo](https://cdemo.hkdev.run) ·
+[Support on Ko-fi](https://ko-fi.com/hashking)
+
 Cultivation monitoring dashboard, built to run on a Raspberry Pi per grow site and
 chain multiple sites up to a master control panel. See
 [docs/architecture.md](docs/architecture.md) for the full roadmap.
