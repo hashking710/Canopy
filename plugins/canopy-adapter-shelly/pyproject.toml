@@ -1,0 +1,29 @@
+[project]
+name = "canopy-adapter-shelly"
+version = "0.1.0"
+description = "Shelly smart plug/relay power-monitoring adapter for Canopy (Gen1 and Gen2+ local HTTP API — no cloud account needed)"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "aiohttp>=3.9",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+shelly = "canopy_adapter_shelly:ShellyAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_shelly*"]

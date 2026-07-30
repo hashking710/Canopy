@@ -1,0 +1,28 @@
+[project]
+name = "canopy-adapter-modbus"
+version = "0.1.0"
+description = "Generic Modbus TCP/RTU sensor adapter plugin for Canopy"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "pymodbus>=3.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+modbus = "canopy_adapter_modbus:ModbusAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_modbus*"]

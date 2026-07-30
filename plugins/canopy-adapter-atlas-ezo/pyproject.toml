@@ -1,0 +1,28 @@
+[project]
+name = "canopy-adapter-atlas-ezo"
+version = "0.1.0"
+description = "Atlas Scientific EZO circuit adapter for Canopy (pH, EC, dissolved oxygen, ORP, RTD temperature — fertigation/reservoir water quality)"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "smbus2>=0.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+atlas_ezo = "canopy_adapter_atlas_ezo:AtlasEzoAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_atlas_ezo*"]

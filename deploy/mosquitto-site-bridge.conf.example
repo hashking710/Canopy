@@ -1,0 +1,31 @@
+# A site's local broker, bridged outbound to a central hub broker (see
+# mosquitto-central-broker.conf.example) — for a deployment with multiple physical
+# sites on intermittent uplinks, where master shouldn't depend on reaching any one
+# site's broker directly. Works through most NATs without inbound port-forwarding at
+# the site, since the site broker only ever makes an outbound connection.
+#
+# Nothing here needs a code change on Canopy's side — edge-agent and master only ever
+# know "connect to whatever CANOPY_MQTT_HOST points at"; which broker that actually is
+# (a bare local one, or one bridged to a hub) is entirely a deployment/config concern.
+# Verified for real (see docs/architecture.md): a live edge-agent behind this exact
+# bridge config had its readings correctly reach a live master subscribed only to the
+# central broker, and recovered automatically (fresh data resumed flowing within one
+# poll cycle) after the site broker was stopped and restarted mid-session.
+listener 1883
+allow_anonymous true
+
+connection canopy-central
+address central-broker.example.com:1883
+topic canopy/# out 1
+cleansession false
+notifications false
+
+# For a real deployment, layer TLS + credentials on top of the plain config above
+# (this is the site's *outbound* connection to the hub — separate from
+# mosquitto-central-broker.conf.example's own listener-side auth/TLS, see
+# docs/mqtt-security.md):
+#
+# address central-broker.example.com:8883
+# bridge_cafile /mosquitto/certs/ca.crt
+# remote_username site-1
+# remote_password <site-specific secret — distinct from CANOPY_API_TOKEN/CANOPY_MASTER_TOKEN>

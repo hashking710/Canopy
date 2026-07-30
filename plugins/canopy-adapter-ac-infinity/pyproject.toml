@@ -1,0 +1,28 @@
+[project]
+name = "canopy-adapter-ac-infinity"
+version = "0.1.0"
+description = "AC Infinity cloud/WiFi sensor adapter plugin for Canopy"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "aiohttp>=3.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+ac_infinity_cloud = "canopy_adapter_ac_infinity:ACInfinityCloudAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_ac_infinity*"]

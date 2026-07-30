@@ -1,0 +1,28 @@
+[project]
+name = "canopy-adapter-tuya"
+version = "0.1.0"
+description = "Tuya local-protocol sensor adapter for Canopy — the huge cheap-sensor ecosystem behind Smart Life / Tuya Smart branded devices, no cloud round-trip at runtime"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "tinytuya>=1.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+tuya = "canopy_adapter_tuya:TuyaAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_tuya*"]

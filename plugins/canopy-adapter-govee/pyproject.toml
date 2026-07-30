@@ -1,0 +1,28 @@
+[project]
+name = "canopy-adapter-govee"
+version = "0.1.0"
+description = "Govee cloud API sensor adapter for Canopy (H5xxx temp+humidity sensors)"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+govee = "canopy_adapter_govee:GoveeAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_govee*"]

@@ -1,0 +1,28 @@
+[project]
+name = "canopy-adapter-ecowitt"
+version = "0.1.0"
+description = "Ecowitt weather station / soil sensor gateway adapter for Canopy — local LAN API, no cloud account needed"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+ecowitt = "canopy_adapter_ecowitt:EcowittAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_ecowitt*"]

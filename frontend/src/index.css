@@ -1,0 +1,1188 @@
+:root {
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --border: #e3e1d9;
+  --border-strong: #cdcabd;
+  --ink: #1c231d;
+  --ink-dim: #5b6259;
+  --ink-faint: #6d7269; /* darkened from #8b9086 — the original failed WCAG AA's 4.5:1 text-contrast minimum against both --bg and --surface (measured ~3.0:1) */
+
+  --accent: #2f5233;
+  --accent-dim: #3f6a45;
+  --accent-soft: #e7ede3;
+  --on-accent: #ffffff;
+
+  --ok: #3c764c; /* darkened from #3e7a4f — failed 4.5:1 against --ok-soft (measured 4.29:1) */
+  --ok-soft: #e5ede8;
+  --warn: #8d6224; /* darkened from #a9752b — failed 4.5:1 against --warn-soft (measured 3.33:1) */
+  --warn-soft: #f4ead6;
+  --danger: #a23b34;
+  --danger-soft: #f5e2df;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+
+  --shadow-card: 0 1px 2px rgba(28, 35, 29, 0.04), 0 1px 1px rgba(28, 35, 29, 0.03);
+  --shadow-card-hover: 0 4px 14px rgba(28, 35, 29, 0.08), 0 1px 2px rgba(28, 35, 29, 0.04);
+
+  color-scheme: light;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* ---------- dark theme ---------- */
+/* Same pine-green identity, shifted onto a dark, faintly warm-green neutral rather than
+   pure black — and the accent lightens (with --on-accent flipping to a dark ink) since a
+   forest-green button needs different contrast handling on a dark ground than on paper. */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181a;
+    --surface: #1b211d;
+    --border: #2b332c;
+    --border-strong: #3d473c;
+    --ink: #e9ece6;
+    --ink-dim: #a5ac9f;
+    --ink-faint: #7f897c; /* lightened from #717a6e — measured only ~4:1 against --bg and --surface, under the 4.5:1 minimum */
+
+    --accent: #7bbb87;
+    --accent-dim: #93cb9d;
+    --accent-soft: #22301f;
+    --on-accent: #10160f;
+
+    --ok: #7bbb87;
+    --ok-soft: #1e2c20;
+    --warn: #dba75c;
+    --warn-soft: #332a19;
+    --danger: #e2897c;
+    --danger-soft: #34211d;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.22);
+    --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #14181a;
+  --surface: #1b211d;
+  --border: #2b332c;
+  --border-strong: #3d473c;
+  --ink: #e9ece6;
+  --ink-dim: #a5ac9f;
+  --ink-faint: #7f897c; /* lightened from #717a6e — measured only ~4:1 against --bg and --surface, under the 4.5:1 minimum */
+
+  --accent: #7bbb87;
+  --accent-dim: #93cb9d;
+  --accent-soft: #22301f;
+  --on-accent: #10160f;
+
+  --ok: #7bbb87;
+  --ok-soft: #1e2c20;
+  --warn: #dba75c;
+  --warn-soft: #332a19;
+  --danger: #e2897c;
+  --danger-soft: #34211d;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.22);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --border: #e3e1d9;
+  --border-strong: #cdcabd;
+  --ink: #1c231d;
+  --ink-dim: #5b6259;
+  --ink-faint: #6d7269; /* darkened from #8b9086 — the original failed WCAG AA's 4.5:1 text-contrast minimum against both --bg and --surface (measured ~3.0:1) */
+
+  --accent: #2f5233;
+  --accent-dim: #3f6a45;
+  --accent-soft: #e7ede3;
+  --on-accent: #ffffff;
+
+  --ok: #3c764c; /* darkened from #3e7a4f — failed 4.5:1 against --ok-soft (measured 4.29:1) */
+  --ok-soft: #e5ede8;
+  --warn: #8d6224; /* darkened from #a9752b — failed 4.5:1 against --warn-soft (measured 3.33:1) */
+  --warn-soft: #f4ead6;
+  --danger: #a23b34;
+  --danger-soft: #f5e2df;
+
+  --shadow-card: 0 1px 2px rgba(28, 35, 29, 0.04), 0 1px 1px rgba(28, 35, 29, 0.03);
+  --shadow-card-hover: 0 4px 14px rgba(28, 35, 29, 0.08), 0 1px 2px rgba(28, 35, 29, 0.04);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 28px 96px;
+}
+
+/* ---------- top navigation ---------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.app-brand-logo {
+  width: 26px;
+  height: 26px;
+}
+
+.app-brand-text {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.top-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.top-nav a {
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+/* Below this, five nowrap labels right-anchored via justify-content:flex-end no
+   longer fit one row even after wrapping — flex-end pushes the overflow off the
+   *left* edge instead of reflowing it, so on a phone "Facility" was rendering
+   off-screen and unclickable. Left-aligning once wrapped keeps every link visible
+   and in reading order across however many rows it takes. */
+@media (max-width: 640px) {
+  .top-nav {
+    justify-content: flex-start;
+  }
+
+  .top-nav a {
+    padding: 7px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+.top-nav a:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.top-nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ---------- sub-nav tabs (e.g. Plants & harvest's Batches/Harvests/Packages) ---------- */
+
+.sub-nav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.sub-nav a {
+  padding: 10px 16px;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.sub-nav a:hover {
+  color: var(--ink);
+}
+
+.sub-nav a.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 24px;
+  color: var(--ink-dim);
+  font-size: 0.86rem;
+  font-weight: 600;
+  transition: color 120ms ease;
+}
+
+.back-link:hover {
+  color: var(--accent);
+}
+
+.page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.page-header-row .back-link {
+  margin-bottom: 0;
+}
+
+.room-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.room-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- section labels (eyebrows) ---------- */
+
+.section-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 40px 0 14px;
+}
+
+.section-label:first-child {
+  margin-top: 0;
+}
+
+.section-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 40px 0 14px;
+}
+
+.section-label-row .section-label {
+  margin: 0;
+}
+
+.plant-search-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  font-family: var(--sans);
+  padding: 7px 11px;
+  font-size: 0.82rem;
+  width: 220px;
+  min-width: 0;
+}
+
+.plant-search-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+.section-label-row:first-child {
+  margin-top: 0;
+}
+
+/* ---------- card grid + card ---------- */
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 860px) {
+  .room-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.card-body {
+  padding: 20px 22px 22px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.card-subtitle {
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+  margin: 0 0 6px;
+}
+
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.card-title {
+  font-size: 1.2rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.card-footnote {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+}
+
+.link-card {
+  display: block;
+  color: inherit;
+}
+
+.link-card .card {
+  transition: box-shadow 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.link-card:hover .card {
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+/* ---------- badges ---------- */
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.74rem;
+  font-weight: 650;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badge-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.badge-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.sensor-health-warning {
+  margin-bottom: 12px;
+}
+
+.live-connection-notice {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+/* ---------- stat grid ---------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 14px;
+  margin: 22px 0;
+}
+
+.stat-grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.retail-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px 24px;
+  margin: 16px 0;
+  font-size: 0.86rem;
+}
+
+.retail-rules-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
+.stat-label {
+  color: var(--ink-dim);
+  font-size: 0.74rem;
+  margin-top: 3px;
+}
+
+/* ---------- facility KPI strip ---------- */
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 8px;
+}
+
+@media (max-width: 700px) {
+  .kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.kpi {
+  background: var(--surface);
+  padding: 18px 22px;
+}
+
+.kpi-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.7rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.kpi-label {
+  font-size: 0.76rem;
+  color: var(--ink-dim);
+  margin-top: 3px;
+}
+
+.facility-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.facility-title {
+  font-size: 1rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+.facility-badge-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.facility-footnote {
+  color: var(--ink-dim);
+  font-size: 0.82rem;
+  margin: 14px 2px 0;
+}
+
+/* ---------- history / audit feed ---------- */
+
+.history-list {
+  margin-top: 16px;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-row:last-child {
+  border-bottom: none;
+}
+
+.history-value {
+  font-family: var(--mono);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* ---------- metric tabs ---------- */
+
+.metric-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.metric-tab {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 7px;
+  padding: 6px 13px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.metric-tab:hover {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.metric-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---------- site list (master panel) ---------- */
+
+.site-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.site-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.site-row:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.site-row-id {
+  font-weight: 650;
+  flex: 1;
+}
+
+/* ---------- data tables ---------- */
+
+/* Every .data-table gets wrapped in this — on a narrow/mobile viewport a
+   many-column table scrolls sideways within its own box instead of silently
+   clipping columns off the edge of the screen or blowing out the page's own
+   width (a real problem on facility floor tablets/phones, not just a
+   desktop nicety). */
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
+.table-scroll .data-table {
+  margin-top: 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+  font-size: 0.86rem;
+}
+
+.data-table th {
+  text-align: left;
+  color: var(--ink-faint);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 14px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr:hover {
+  background: var(--accent-soft);
+}
+
+/* ---------- forms ---------- */
+
+.quick-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  align-items: flex-end;
+}
+
+.quick-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+}
+
+.quick-form input,
+.quick-form select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  font-family: var(--sans);
+  padding: 8px 11px;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.quick-form input:focus,
+.quick-form select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+.quick-form button {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 7px;
+  padding: 9px 18px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.quick-form button:hover:not(:disabled) {
+  background: var(--accent-dim);
+}
+
+.quick-form button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- full-width labeled field (e.g. a JSON config textarea) ---------- */
+
+.field-block {
+  display: block;
+  margin-top: 14px;
+}
+
+.field-block textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  padding: 8px 11px;
+  resize: vertical;
+}
+
+.field-block textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+/* ---------- metric/adapter config editors (structured, not raw JSON) ---------- */
+
+.metric-config-editor {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric-config-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.metric-config-row input[type="text"],
+.metric-config-row input:not([type]),
+.metric-config-row input[type="number"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: var(--sans);
+  padding: 6px 9px;
+  font-size: 0.8rem;
+  width: 100px;
+  min-width: 0;
+}
+
+.metric-config-row input[type="number"] {
+  width: 76px;
+}
+
+.metric-config-derived {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.adapter-config-editor {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.adapter-config-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+}
+
+.adapter-config-editor input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  font-family: var(--sans);
+  padding: 8px 11px;
+  font-size: 0.85rem;
+  min-width: 180px;
+}
+
+.adapter-config-editor .field-block {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+
+/* Persistent guidance under an adapter-config input — placeholder text alone
+   disappears the moment someone starts typing, so the field's meaning has to
+   also live somewhere that stays visible. */
+.field-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--ink-faint);
+  max-width: 260px;
+}
+
+.env-requirement-note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
+.env-requirement-note .env-requirement-title {
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+
+.env-requirement-note code {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+/* ---------- package processing lineage ---------- */
+
+.lineage-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.lineage-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lineage-arrow {
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.lineage-item {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.inline-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink-dim);
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 0.74rem;
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.inline-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* For irreversible actions (delete room, destroy plant) — same shape as
+   .inline-button, but colored so a destructive action doesn't look identical
+   to a routine one like "edit". */
+.inline-button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.inline-button.danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.quick-form button.danger {
+  background: var(--danger);
+}
+
+.quick-form button.danger:hover:not(:disabled) {
+  background: var(--danger);
+  filter: brightness(0.92);
+}
+
+/* Separates several distinct action forms stacked inside one Card (e.g. move /
+   harvest / destroy a plant) so they read as independent actions, not one form. */
+.action-subsection {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.action-subsection:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: 0.8rem;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.form-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ok);
+  font-size: 0.8rem;
+  font-weight: 650;
+  margin-top: 10px;
+  animation: form-success-fade 2500ms ease-in both;
+}
+
+@keyframes form-success-fade {
+  0% { opacity: 0; transform: translateY(-2px); }
+  10% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-success {
+    animation: none;
+  }
+}
+
+/* ---------- scan input ---------- */
+
+.scan-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  padding: 0 11px;
+  transition: box-shadow 200ms ease;
+}
+
+.scan-input-flash {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.scan-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.scan-input input {
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+  font-size: 0.85rem;
+  font-family: var(--mono);
+  color: var(--ink);
+  width: 100%;
+  min-width: 0;
+}
+
+/* The input itself has no border (its wrapper draws the pill shape), so removing its
+   own outline is fine visually — but that outline was the only keyboard-focus signal
+   this control had. Give the focus ring to the wrapper instead, matching the same
+   accent-outline treatment every other input in the app already uses on :focus. */
+.scan-input input:focus {
+  outline: none;
+}
+
+.scan-input:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+.scan-input input::placeholder {
+  font-family: var(--sans);
+  color: var(--ink-faint);
+}
+
+.scan-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.scan-row .scan-input {
+  max-width: 340px;
+  flex: 1;
+}
+
+.scan-result {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+/* ---------- operator picker ---------- */
+
+.operator-picker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.operator-picker label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--ink-dim);
+}
+
+.operator-picker select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  font-family: var(--sans);
+  padding: 7px 10px;
+  font-size: 0.85rem;
+}
+
+.operator-add-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.operator-add-form input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  font-family: var(--sans);
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  width: 130px;
+}
+
+/* ---------- loading / error states ---------- */
+
+.page-status {
+  color: var(--ink-dim);
+  font-size: 0.9rem;
+  padding: 60px 0;
+  text-align: center;
+}
+
+/* ---------- theme toggle ---------- */
+
+.theme-toggle {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-dim);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.theme-toggle svg {
+  width: 17px;
+  height: 17px;
+}

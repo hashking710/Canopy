@@ -1,0 +1,44 @@
+# A standalone, publicly-reachable demo instance — separate from the main
+# docker-compose.yml (a real self-hosting deployment), so a visitor can never reach a
+# real facility's data and a real facility never inherits the demo's reset/rate-limit
+# behavior. No MQTT/master — a demo doesn't need the multi-site story to make its
+# point. Run from the repo root: `docker compose -f deploy/docker-compose.demo.yml up
+# --build`. Intended to sit behind the Caddy reverse proxy that also fronts
+# canopy-website (see that repo's Caddyfile) at cdemo.hkdev.run, routing
+# /api/* and /ws/* to edge-agent-demo and everything else to frontend-demo, so both
+# are same-origin from a browser's perspective and CORS doesn't need touching.
+#
+# These same two services are also merged into ../canopy-license-server/docker-
+# compose.yml, alongside website/license-server/bot, as one combined stack — use
+# that instead if you want everything running together. This file is still here for
+# running the demo entirely on its own.
+services:
+  edge-agent-demo:
+    build:
+      context: ..
+      dockerfile: edge-agent/Dockerfile
+    ports: ["8100:8000"]
+    environment:
+      - CANOPY_DATA_DIR=/data
+      - CANOPY_DEMO_MODE=true
+    volumes: ["edge-agent-demo-data:/data"]
+    restart: unless-stopped
+
+  frontend-demo:
+    build:
+      context: ../frontend
+      args:
+        # localhost so this stack is immediately runnable/testable as-is, matching
+        # docker-compose.yml's own convention. VITE_API_BASE is baked into the JS
+        # bundle at build time (read by the browser, not container-to-container),
+        # so a real deployment behind Caddy at cdemo.hkdev.run should rebuild
+        # with --build-arg VITE_API_BASE=https://cdemo.hkdev.run instead —
+        # same-origin against the site's own public URL, so the browser never needs
+        # a cross-origin CORS allowance for it.
+        VITE_API_BASE: http://localhost:8100
+    ports: ["5273:80"]
+    depends_on: [edge-agent-demo]
+    restart: unless-stopped
+
+volumes:
+  edge-agent-demo-data:

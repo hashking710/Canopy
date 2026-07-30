@@ -1,0 +1,52 @@
+services:
+  # mosquitto + master are only needed when chaining multiple Pis/sites under one
+  # "main brain" — a single home-grower with one Pi doesn't need either. `docker
+  # compose up` alone starts just edge-agent + frontend; add `--profile multi-site`
+  # to bring in the mesh. See README.md's "Which setup do I need?" section.
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports: ["1883:1883"]
+    volumes: ["./deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"]
+    restart: unless-stopped
+    profiles: ["multi-site"]
+
+  edge-agent:
+    build:
+      context: .
+      dockerfile: edge-agent/Dockerfile
+    ports: ["8000:8000"]
+    environment:
+      - CANOPY_DATA_DIR=/data
+      # Harmless when mosquitto isn't running (single-site profile): the MQTT
+      # publisher/audit-relay background tasks retry quietly with a warning log,
+      # never blocking startup or the dashboard itself (see services/poller.py's
+      # mqtt_enabled() gate and services/audit_relay.py's retry loop).
+      - CANOPY_MQTT_HOST=mosquitto
+      - CANOPY_SITE_ID=site-1
+    volumes: ["edge-agent-data:/data"]
+    restart: unless-stopped
+
+  master:
+    build: ./master
+    ports: ["9100:9100"]
+    environment:
+      - CANOPY_MQTT_HOST=mosquitto
+      - CANOPY_MASTER_DATA_DIR=/data
+    volumes: ["master-data:/data"]
+    depends_on: [mosquitto]
+    restart: unless-stopped
+    profiles: ["multi-site"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: http://localhost:8000
+        VITE_MASTER_API_BASE: http://localhost:9100
+    ports: ["5173:80"]
+    depends_on: [edge-agent]
+    restart: unless-stopped
+
+volumes:
+  edge-agent-data:
+  master-data:

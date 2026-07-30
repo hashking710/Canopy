@@ -1,0 +1,29 @@
+# Secure mosquitto config for Canopy's MQTT mesh (edge-agent <-> master, and the
+# cross-device audit relay). The default deploy/mosquitto.conf accepts anonymous,
+# unencrypted connections from anything that can reach port 1883 — fine for a single
+# device on your own machine, not fine the moment more than one device shares a
+# network you don't fully control. See docs/mqtt-security.md for the full walkthrough
+# this file is one half of (the other half is generating real credentials + certs).
+#
+# To use this: generate credentials/certs per docs/mqtt-security.md, then point
+# docker-compose.yml's mosquitto volume mount at this file instead of mosquitto.conf
+# (or copy this over mosquitto.conf directly), and set CANOPY_MQTT_USERNAME /
+# CANOPY_MQTT_PASSWORD / CANOPY_MQTT_TLS=true / CANOPY_MQTT_CA_CERT on every service
+# that connects (edge-agent, master) to match.
+
+# Plaintext listener, credentials required — usable as-is on a trusted LAN once
+# credentials exist, without also standing up TLS.
+listener 1883
+allow_anonymous false
+password_file /mosquitto/config/passwd
+
+# TLS listener — only usable once real-self-signed certs exist at the paths below (see
+# docs/mqtt-security.md; reuses the same scripts/generate-self-signed-cert.sh already
+# used for the HTTP API's TLS option). Point every client at this port instead of 1883
+# once you switch it on, not both — same "pick one, don't layer them" rule as HTTP TLS.
+listener 8883
+allow_anonymous false
+password_file /mosquitto/config/passwd
+cafile /mosquitto/certs/cert.pem
+certfile /mosquitto/certs/cert.pem
+keyfile /mosquitto/certs/key.pem

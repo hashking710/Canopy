@@ -1,0 +1,14 @@
+# The hub broker for multi-site bridging — master subscribes here instead of any one
+# site's local broker. Verified for real (see docs/architecture.md's "Multi-site
+# verification" section): a genuine two-broker bridge topology, a real edge-agent
+# behind the site broker, a real master behind this one, full room/reading data
+# flowing through correctly, and automatic recovery after the site broker's bridge
+# connection was killed and restarted — no custom retry logic needed on Canopy's
+# side, this is standard Mosquitto persistent-session bridge behavior.
+#
+# This example is intentionally the plain/anonymous case, matching the base
+# deploy/mosquitto.conf's posture — layer deploy/mosquitto.secure.conf.example's
+# auth/TLS listener config on top if this hub is reachable beyond a trusted network
+# (it usually is, since the whole point is accepting connections from remote sites).
+listener 1883
+allow_anonymous true

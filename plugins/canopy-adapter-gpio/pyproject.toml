@@ -1,0 +1,29 @@
+[project]
+name = "canopy-adapter-gpio"
+version = "0.1.0"
+description = "Direct-attached Raspberry Pi sensor adapter for Canopy — I2C (SHT31, ADS1115), 1-Wire (DS18B20), and digital GPIO (float switches / leak sensors)"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "smbus2>=0.4",
+    "gpiozero>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+gpio = "canopy_adapter_gpio:GpioAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_gpio*"]

@@ -1,0 +1,26 @@
+edge-agent/.venv/
+edge-agent/data/
+edge-agent/*.log
+edge-agent/__pycache__/
+edge-agent/**/__pycache__/
+edge-agent/*.egg-info/
+
+frontend/node_modules/
+frontend/dist/
+frontend/dev.log
+frontend/test-results/
+frontend/playwright-report/
+
+master/.venv/
+master/*.log
+master/__pycache__/
+master/**/__pycache__/
+master/*.egg-info/
+master/data/
+
+plugins/**/__pycache__/
+plugins/**/*.egg-info/
+plugins/**/.venv/
+
+# Local Claude Code tool-permission history — machine-specific, not project config.
+.claude/

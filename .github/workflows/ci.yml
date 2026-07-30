@@ -1,0 +1,220 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  edge-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install edge-agent
+        working-directory: edge-agent
+        run: pip install -e ".[dev]"
+
+      - name: Install AC Infinity plugin (proves plugin discovery works, not just the core)
+        run: pip install -e plugins/canopy-adapter-ac-infinity
+
+      - name: Install Modbus plugin
+        run: pip install -e plugins/canopy-adapter-modbus
+
+      - name: Install TrolMaster plugin (scaffold — see its docstring)
+        run: pip install -e plugins/canopy-adapter-trolmaster
+
+      - name: Install MQTT plugin
+        run: pip install -e plugins/canopy-adapter-mqtt
+
+      - name: Install Shelly plugin
+        run: pip install -e plugins/canopy-adapter-shelly
+
+      - name: Install Ecowitt plugin
+        run: pip install -e plugins/canopy-adapter-ecowitt
+
+      - name: Install SwitchBot plugin
+        run: pip install -e plugins/canopy-adapter-switchbot
+
+      - name: Install Govee plugin
+        run: pip install -e plugins/canopy-adapter-govee
+
+      - name: Install GPIO plugin (Linux runner — smbus2 installs and imports fine here)
+        run: pip install -e plugins/canopy-adapter-gpio
+
+      - name: Install Atlas EZO plugin
+        run: pip install -e plugins/canopy-adapter-atlas-ezo
+
+      - name: Install BLE plugin (bleak installs/imports fine without a BT adapter present)
+        run: pip install -e plugins/canopy-adapter-ble
+
+      - name: Install Aranet4 plugin
+        run: pip install -e plugins/canopy-adapter-aranet4
+
+      - name: Install Tuya plugin
+        run: pip install -e plugins/canopy-adapter-tuya
+
+      - name: Install Rachio plugin
+        run: pip install -e plugins/canopy-adapter-rachio
+
+      - name: Install RainMachine plugin
+        run: pip install -e plugins/canopy-adapter-rainmachine
+
+      - name: Run edge-agent tests
+        working-directory: edge-agent
+        run: pytest -q
+
+      - name: Run AC Infinity plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-ac-infinity/tests
+
+      - name: Run Modbus plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-modbus/tests
+
+      - name: Run TrolMaster plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-trolmaster/tests
+
+      - name: Run MQTT plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-mqtt/tests
+
+      - name: Run Shelly plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-shelly/tests
+
+      - name: Run Ecowitt plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-ecowitt/tests
+
+      - name: Run SwitchBot plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-switchbot/tests
+
+      - name: Run Govee plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-govee/tests
+
+      - name: Run GPIO plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-gpio/tests
+
+      - name: Run Atlas EZO plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-atlas-ezo/tests
+
+      - name: Run BLE plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-ble/tests
+
+      - name: Run Aranet4 plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-aranet4/tests
+
+      - name: Run Tuya plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-tuya/tests
+
+      - name: Run Rachio plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-rachio/tests
+
+      - name: Run RainMachine plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-adapter-rainmachine/tests
+
+  master:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install master
+        working-directory: master
+        run: pip install -e ".[dev]"
+
+      - name: Run master tests
+        working-directory: master
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type-check
+        working-directory: frontend
+        run: npx tsc -b
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright's Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      # Brings up the real containers the app actually ships as (not dev servers) —
+      # same images/Dockerfiles as production, matching how these specs are meant to
+      # be run (see frontend/e2e/README.md).
+      - name: Start edge-agent + frontend
+        run: docker compose up -d --build edge-agent frontend
+
+      - name: Wait for edge-agent to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/api/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "edge-agent never became healthy" >&2
+          docker compose logs edge-agent
+          exit 1
+
+      - name: Run E2E suite
+        working-directory: frontend
+        run: npm run e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs
