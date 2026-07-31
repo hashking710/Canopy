@@ -1,19 +1,37 @@
-# Canopy
+<p align="center">
+  <img src="canopy.svg" alt="Canopy" width="120">
+</p>
 
-[Website](https://canopy.hkdev.run) · [Live demo](https://cdemo.hkdev.run) ·
-[Support on Ko-fi](https://ko-fi.com/hashking)
+<h1 align="center">Canopy</h1>
 
-Cultivation monitoring dashboard, built to run on a Raspberry Pi per grow site and
-chain multiple sites up to a master control panel. See
-[docs/architecture.md](docs/architecture.md) for the full roadmap.
+<p align="center">
+  Cultivation compliance you can actually audit — seed-to-sale tracking, a<br>
+  hash-chained audit trail, and per-state rules sourced from real regulation text.
+</p>
+
+<p align="center">
+  <a href="https://github.com/hashking710/Canopy/actions/workflows/ci.yml"><img src="https://github.com/hashking710/Canopy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/github/last-commit/hashking710/Canopy" alt="Last commit">
+</p>
+
+<p align="center">
+  <a href="https://canopy.hkdev.run">Website</a> ·
+  <a href="https://cdemo.hkdev.run">Live demo</a> ·
+  <a href="docs/screenshots.md">Screenshots</a> ·
+  <a href="https://ko-fi.com/hashking">Support on Ko-fi</a>
+</p>
+
+Runs on a Raspberry Pi per grow site and chains multiple sites up to a master
+control panel. See [docs/architecture.md](docs/architecture.md) for the full
+roadmap.
 
 Phase 1 (mocked sensor data + dashboard UI) is done. Phase 2 (real sensor adapters —
 14 plugins covering cloud, local-network, BLE, GPIO/I2C, and Modbus devices) is
 largely built, with per-adapter hardware verification the main thing still
 outstanding; compliance/track-and-trace tracking is built end-to-end, including a
 real (partial) METRC sync plugin, not yet exercised against a live METRC account.
-Phase 3 (MQTT chaining +
-master panel, including multi-site aggregation and broker bridging for
+Phase 3 (MQTT chaining + master panel, including multi-site aggregation and
+broker bridging for
 intermittent-uplink sites) is done and verified with two real sites against a real
 broker — see [docs/architecture.md](docs/architecture.md) for what's built vs. what
 still needs real hardware or real METRC credentials to verify. A
