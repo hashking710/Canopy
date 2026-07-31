@@ -7,8 +7,12 @@ Cultivation monitoring dashboard, built to run on a Raspberry Pi per grow site a
 chain multiple sites up to a master control panel. See
 [docs/architecture.md](docs/architecture.md) for the full roadmap.
 
-Phase 1 (mocked sensor data + dashboard UI) is done. Phase 2 (real sensor adapters)
-and compliance/track-and-trace tracking are in progress; Phase 3 (MQTT chaining +
+Phase 1 (mocked sensor data + dashboard UI) is done. Phase 2 (real sensor adapters —
+14 plugins covering cloud, local-network, BLE, GPIO/I2C, and Modbus devices) is
+largely built, with per-adapter hardware verification the main thing still
+outstanding; compliance/track-and-trace tracking is built end-to-end, including a
+real (partial) METRC sync plugin, not yet exercised against a live METRC account.
+Phase 3 (MQTT chaining +
 master panel, including multi-site aggregation and broker bridging for
 intermittent-uplink sites) is done and verified with two real sites against a real
 broker — see [docs/architecture.md](docs/architecture.md) for what's built vs. what
@@ -209,8 +213,10 @@ state-rules`, the compliance page's footnote, and the "State-specific rules" sec
 `docs/architecture.md` before relying on a given state. Visit `/alerts` to set
 threshold rules per room+metric and see currently-breached alerts (optionally wired to
 a webhook, email, or Discord — see `docs/architecture.md` and
-[docs/discord-alerts.md](docs/discord-alerts.md)). Nothing here is synced to METRC or
-any state system yet.
+[docs/discord-alerts.md](docs/discord-alerts.md)). Nothing syncs to METRC or any
+state system by default — set `CANOPY_COMPLIANCE_SYNC=metrc` with
+`plugins/canopy-compliancesync-metrc/` installed and real credentials to turn on a
+real (partial — see `docs/architecture.md`) METRC sync.
 
 ## Chaining / master panel (optional)
 

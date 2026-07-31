@@ -63,6 +63,9 @@ jobs:
       - name: Install RainMachine plugin
         run: pip install -e plugins/canopy-adapter-rainmachine
 
+      - name: Install METRC compliance-sync plugin
+        run: pip install -e plugins/canopy-compliancesync-metrc
+
       - name: Run edge-agent tests
         working-directory: edge-agent
         run: pytest -q
@@ -126,6 +129,10 @@ jobs:
       - name: Run RainMachine plugin tests
         working-directory: edge-agent
         run: pytest -q ../plugins/canopy-adapter-rainmachine/tests
+
+      - name: Run METRC compliance-sync plugin tests
+        working-directory: edge-agent
+        run: pytest -q ../plugins/canopy-compliancesync-metrc/tests
 
   master:
     runs-on: ubuntu-latest

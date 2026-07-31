@@ -40,6 +40,11 @@ COPY plugins/canopy-adapter-aranet4 /plugins/canopy-adapter-aranet4
 COPY plugins/canopy-adapter-tuya /plugins/canopy-adapter-tuya
 COPY plugins/canopy-adapter-rachio /plugins/canopy-adapter-rachio
 COPY plugins/canopy-adapter-rainmachine /plugins/canopy-adapter-rainmachine
+# Compliance-sync plugin, not a sensor adapter — inert unless
+# CANOPY_COMPLIANCE_SYNC=metrc and real METRC credentials are set. See its own
+# docstring for exactly which operations are implemented against a confirmed
+# request shape vs. left honestly unimplemented.
+COPY plugins/canopy-compliancesync-metrc /plugins/canopy-compliancesync-metrc
 
 RUN pip install --no-cache-dir . \
     /plugins/canopy-adapter-ac-infinity \
@@ -56,7 +61,8 @@ RUN pip install --no-cache-dir . \
     /plugins/canopy-adapter-aranet4 \
     /plugins/canopy-adapter-tuya \
     /plugins/canopy-adapter-rachio \
-    /plugins/canopy-adapter-rainmachine
+    /plugins/canopy-adapter-rainmachine \
+    /plugins/canopy-compliancesync-metrc
 
 EXPOSE 8000
 

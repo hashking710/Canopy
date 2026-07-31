@@ -273,10 +273,21 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
   package registers as a real plugin (proving the mechanism) but its `read()` raises
   `NotImplementedError` with what's needed to finish it, rather than shipping guessed
   request/response shapes as if they were verified.
-- Multiple adapters can run concurrently per room (e.g. one BLE controller for
-  temp/RH, a separate CO2 probe) — the poller currently assumes one adapter per room;
-  supporting a list of adapters per room is a small follow-up once a second real
-  adapter type is in use on the same room.
+- **Multiple adapters per room (built)** — a room's primary `adapter_type`/
+  `adapter_config` is unchanged, but a room can now also have any number of
+  `RoomAdapter` rows (`POST`/`DELETE /api/rooms/{id}/adapters`), e.g. a BLE
+  controller for temp/RH plus a separate CO2 probe on the same room.
+  `services/poller.py` reads the primary adapter, then each extra adapter in
+  insertion order, merging every result into one dict per room — a later adapter's
+  key wins on collision, so config order is a meaningful choice. Every existing
+  `SensorAdapter.read(room)` implementation across every plugin package needed zero
+  changes: an extra adapter is read by handing it a lightweight stand-in `Room` with
+  that adapter's own type/config substituted in, never added to a DB session.
+  Verified via `tests/test_poller_multi_adapter.py` (merge behavior, collision
+  ordering, and that a room with no extra adapters is completely unaffected) and
+  `tests/test_rooms_extra_adapters.py` (the CRUD endpoints, including that deleting
+  a room cleans up its extra adapters — SQLite doesn't enforce foreign keys here,
+  same reasoning as every other related-row cleanup in `routers/rooms.py`).
 
 ## Phase 3 — chaining + master control panel (core pipeline built)
 
@@ -478,7 +489,7 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
   broker-bridging item above is what that would actually require for a genuinely
   distributed deployment.
 
-## Compliance / track-and-trace (built, unsynced)
+## Compliance / track-and-trace (built, partial METRC sync)
 
 ![Compliance page — chain of custody, retail rules cited to the actual regulation section, plant-count reconciliation, waste log, and the hash-chained audit trail](screenshots/03-compliance.png)
 
@@ -667,16 +678,45 @@ never a silent assumption.
   events as `overdue` once it passes — until
   `POST /api/compliance/waste-events/{id}/mark-reported` is called, so the flag can
   actually be resolved once someone files it, not nag forever.
-- **Sync interface, not implementation**: `compliance_sync/base.py` defines a
+- **Sync interface, partially implemented**: `compliance_sync/base.py` defines a
   `ComplianceSync` interface (`sync_plant_batch_created`, `sync_waste_event`, ...) that
-  every mutating compliance endpoint calls. `NullComplianceSync` (the only
-  implementation right now) does nothing — same reasoning as the AC Infinity BLE gap:
-  we don't have real METRC credentials to build and verify a live sync against, so it
-  isn't built. When credentials exist, a `MetrcComplianceSync` is a mapping exercise
-  against this interface, not a redesign — and has real official API endpoints to build
-  against now: California's live API docs (`api-ca.metrc.com`) were pulled during the
-  re-verification pass and confirm endpoints like `POST /plants/v2/plantings`,
-  `PUT /plants/v2/location`, `POST /plants/v2/waste`, `POST /harvests/v2/packages`, etc.
+  every mutating compliance endpoint calls. `NullComplianceSync` (records nothing
+  externally) is still the default (`CANOPY_COMPLIANCE_SYNC` unset) — but a real one,
+  `plugins/canopy-compliancesync-metrc/`, now exists alongside it, installed the same
+  optional-plugin way as a sensor adapter. It targets METRC's v1, action-based
+  endpoints (`/plants/v1/create/plantings`, `/plants/v1/moveplants`,
+  `/plants/v1/destroyplants`, `/plantbatches/v1/createplantings`,
+  `/harvests/v1/removewaste`, `/harvests/v1/create/packages`) with real HTTP Basic
+  Auth (vendor key + user key, confirmed against METRC's own published
+  getting-started docs) — not v2, even though California's live docs
+  (`api-ca.metrc.com`, fetched directly) confirm v2 equivalents exist for some of
+  these operations (`POST /plants/v2/plantings`, `PUT /plants/v2/location`,
+  `POST /plants/v2/waste`, `POST /harvests/v2/packages`). The reason is the same
+  "don't ship a guess as if it were verified" bar this whole compliance module was
+  built around: v1's request-body field names come from a real, maintained
+  integration (`cannlytics/cannlytics-engine`'s METRC client) that's already this
+  project's trusted reference for METRC's object model; nowhere accessible without a
+  real METRC account confirms v2's exact field names, so v1 is what's actually built
+  against. Migrating to v2 once its body schema can be verified against a real
+  sandbox account is a mapping exercise, not a redesign.
+  Three operations stay honestly unimplemented rather than guessed, each for a
+  specific, cited reason (see the plugin's own docstrings): plant-batch creation in
+  California specifically (METRC's own `CanCreateOpeningBalancePlantBatches: false`
+  config rejects it there — confirmed via the reference client's own state-specific
+  guard, not assumed), harvest creation (METRC has no dedicated endpoint for it at
+  all — a harvest comes from the `harvestplants` action on plants, which even the
+  reference client leaves as an unimplemented stub), and packages created from
+  *another* package rather than a harvest (Canopy's extraction/winterization/
+  distillation chain — no confirmed METRC shape for this anywhere accessible). A real
+  correctness gotcha caught building this, not just a gap: the compliance router
+  calls both `sync_plant_destroyed` and `sync_waste_event` for the same plant
+  destruction, but METRC's `destroyplants` action already reports that waste as part
+  of destroying the plant — so `sync_waste_event` is a deliberate no-op for
+  plant-sourced waste specifically, to avoid double-counting real destroyed material
+  against the license's inventory. Verified against a real local HTTP server (same
+  pattern as the Shelly/Ecowitt/Modbus adapters), not a live METRC account — the auth
+  header, query params, and every implemented request body are covered by real tests,
+  none of the actual field-level shapes are exercised against METRC itself yet.
   Other states' API portals hasn't been diffed against California's yet — METRC is
   known to vary fields/endpoints per state deployment. And a single METRC-shaped
   `ComplianceSync` won't cover every state regardless: Arizona has no state platform to
@@ -699,9 +739,14 @@ never a silent assumption.
   `mapped_column(default=0)` fields left those fields `None` until the first DB flush,
   crashing `destroyed_count += 1` pre-flush; and, during re-verification, the universal
   3-business-day deadline itself turned out to be incorrect (see above).
-- **Not synced anywhere** — this is Canopy's own record only, useful standalone
-  (audit trail, deadlines, reconciliation are real value without any external system),
-  but not yet reported to METRC or any state.
+- **Off by default, real when configured** — with no `CANOPY_COMPLIANCE_SYNC` set (or
+  set to `null`), this is Canopy's own record only, useful standalone (audit trail,
+  deadlines, reconciliation are real value without any external system). Set it to
+  `metrc` with the METRC plugin installed and real credentials
+  (`CANOPY_METRC_VENDOR_API_KEY` / `CANOPY_METRC_USER_API_KEY` /
+  `CANOPY_METRC_LICENSE_NUMBER`) and most plant/waste/package events report to METRC
+  for real — genuinely not exercised against a live METRC account yet, only a real
+  local test server matching its documented request shapes.
 
 ## Hardening pass — production-readiness (built)
 

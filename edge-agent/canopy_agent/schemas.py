@@ -29,6 +29,12 @@ class ReadingPoint(BaseModel):
     value: float
 
 
+class RoomAdapterOut(BaseModel):
+    id: int
+    adapter_type: str
+    adapter_config: dict
+
+
 class RoomConfigOut(BaseModel):
     """The editable configuration behind a room — deliberately separate from RoomOut
     (which powers the room list/live-update payload broadcast over MQTT to every
@@ -38,3 +44,4 @@ class RoomConfigOut(BaseModel):
     adapter_type: str
     metric_config: dict
     adapter_config: dict
+    extra_adapters: list[RoomAdapterOut] = []

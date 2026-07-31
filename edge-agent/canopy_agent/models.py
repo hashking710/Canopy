@@ -46,6 +46,32 @@ class Room(Base):
     last_poll_error: Mapped[str | None] = mapped_column(String, nullable=True)
 
     readings: Mapped[list["Reading"]] = relationship(back_populates="room")
+    extra_adapters: Mapped[list["RoomAdapter"]] = relationship(back_populates="room", order_by="RoomAdapter.id")
+
+
+class RoomAdapter(Base):
+    """
+    An additional sensor adapter polled for a room, beyond its primary
+    adapter_type/adapter_config above — e.g. a BLE temp/RH controller plus a
+    separate CO2 probe on the same room. The poller (services/poller.py) reads the
+    primary adapter first, then each of these in insertion order, merging every
+    adapter's returned metrics into one dict for the room — a later adapter's key
+    wins on collision (matches the primary-then-extras read order), so config order
+    is a meaningful choice, not arbitrary. Kept as its own table rather than turning
+    Room.adapter_type/adapter_config into a list, so the overwhelmingly common
+    single-adapter case (and every existing room/test/plugin) needs no changes at
+    all — this is purely additive.
+    """
+
+    __tablename__ = "room_adapters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id"), index=True)
+    adapter_type: Mapped[str] = mapped_column(String)
+    adapter_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    room: Mapped["Room"] = relationship(back_populates="extra_adapters")
 
 
 class Reading(Base):

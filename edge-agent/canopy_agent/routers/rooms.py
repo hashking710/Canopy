@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from canopy_agent.adapters.registry import available_adapter_types
 from canopy_agent.deps import get_db
-from canopy_agent.models import AlertEvent, AlertRule, Reading, ReadingRollup, Room
-from canopy_agent.schemas import ReadingPoint, RoomConfigOut, RoomOut
+from canopy_agent.models import AlertEvent, AlertRule, Reading, ReadingRollup, Room, RoomAdapter
+from canopy_agent.schemas import ReadingPoint, RoomAdapterOut, RoomConfigOut, RoomOut
 from canopy_agent.stats import get_latest_values, room_payload
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
@@ -121,7 +121,13 @@ def get_room_config(room_id: str, db: Session = Depends(get_db)) -> RoomConfigOu
     room = db.get(Room, room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="room not found")
-    return RoomConfigOut(adapter_type=room.adapter_type, metric_config=room.metric_config, adapter_config=room.adapter_config)
+    return RoomConfigOut(
+        adapter_type=room.adapter_type, metric_config=room.metric_config, adapter_config=room.adapter_config,
+        extra_adapters=[
+            RoomAdapterOut(id=a.id, adapter_type=a.adapter_type, adapter_config=a.adapter_config)
+            for a in room.extra_adapters
+        ],
+    )
 
 
 @router.post("", response_model=RoomOut)
@@ -182,9 +188,43 @@ def delete_room(room_id: str, db: Session = Depends(get_db)) -> dict:
     db.execute(delete(AlertRule).where(AlertRule.room_id == room_id))
     db.execute(delete(ReadingRollup).where(ReadingRollup.room_id == room_id))
     db.execute(delete(Reading).where(Reading.room_id == room_id))
+    db.execute(delete(RoomAdapter).where(RoomAdapter.room_id == room_id))
     db.delete(room)
     db.commit()
     return {"id": room_id, "deleted": True}
+
+
+class AddRoomAdapterRequest(BaseModel):
+    adapter_type: str
+    adapter_config: dict = {}
+
+
+@router.post("/{room_id}/adapters", response_model=RoomAdapterOut)
+def add_room_adapter(room_id: str, body: AddRoomAdapterRequest, db: Session = Depends(get_db)) -> RoomAdapterOut:
+    """Adds an *additional* adapter for this room, polled alongside its primary
+    adapter_type/adapter_config every cycle and merged into one reading (see
+    services/poller.py) — e.g. a BLE temp/RH controller plus a separate CO2 probe on
+    the same room. The room's primary adapter is unaffected; use PUT /{room_id} to
+    change that one."""
+    room = db.get(Room, room_id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="room not found")
+    _validate_adapter_type(body.adapter_type)
+
+    extra = RoomAdapter(room_id=room_id, adapter_type=body.adapter_type, adapter_config=body.adapter_config)
+    db.add(extra)
+    db.commit()
+    return RoomAdapterOut(id=extra.id, adapter_type=extra.adapter_type, adapter_config=extra.adapter_config)
+
+
+@router.delete("/{room_id}/adapters/{adapter_id}")
+def remove_room_adapter(room_id: str, adapter_id: int, db: Session = Depends(get_db)) -> dict:
+    extra = db.get(RoomAdapter, adapter_id)
+    if extra is None or extra.room_id != room_id:
+        raise HTTPException(status_code=404, detail="extra adapter not found on this room")
+    db.delete(extra)
+    db.commit()
+    return {"id": adapter_id, "deleted": True}
 
 
 @router.get("/{room_id}/readings", response_model=list[ReadingPoint])

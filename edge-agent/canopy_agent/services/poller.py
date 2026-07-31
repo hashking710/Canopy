@@ -79,16 +79,39 @@ def _record_poll_health(db: Session, room: Room, error: str | None) -> None:
     room.last_poll_error = error
 
 
+async def _read_one_adapter(room: Room, adapter_type: str, adapter_config: dict, is_primary: bool) -> dict[str, float]:
+    """One adapter read, given an adapter_type/adapter_config pair that may or may
+    not be the room's own primary ones (see _read_room) — every SensorAdapter.read()
+    implementation across every plugin package reads room.adapter_config, so an
+    extra adapter is read by handing the adapter a lightweight stand-in Room with
+    that extra adapter's own type/config substituted in, rather than changing the
+    SensorAdapter interface every plugin already implements. The stand-in is never
+    added to a DB session — a plain in-memory object, not a real row."""
+    lookup_room = room if is_primary else Room(
+        id=room.id, room_type=room.room_type, path=room.path, metric_config=room.metric_config,
+        adapter_type=adapter_type, adapter_config=adapter_config,
+    )
+    adapter = get_adapter(lookup_room)
+    try:
+        return await asyncio.wait_for(adapter.read(lookup_room), timeout=ADAPTER_READ_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        which = "primary" if is_primary else "extra"
+        raise RuntimeError(
+            f"{which} adapter_type '{adapter_type}' didn't respond within {ADAPTER_READ_TIMEOUT_SECONDS}s"
+        ) from None
+
+
 async def _read_room(room: Room) -> dict[str, float]:
     """Adapter I/O only — no DB access — so this is safe to run concurrently across
-    rooms via asyncio.gather (see poll_once)."""
-    adapter = get_adapter(room)
-    try:
-        values = await asyncio.wait_for(adapter.read(room), timeout=ADAPTER_READ_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
-        raise RuntimeError(
-            f"adapter_type '{room.adapter_type}' didn't respond within {ADAPTER_READ_TIMEOUT_SECONDS}s"
-        ) from None
+    rooms via asyncio.gather (see poll_once). Reads the room's primary adapter, then
+    each of its extra_adapters (see models.RoomAdapter) in order, merging every
+    result into one dict — a later adapter's key wins on collision, so a room with
+    e.g. a BLE controller *and* a separate CO2 probe reports one merged reading per
+    poll cycle rather than only ever seeing its primary adapter's metrics."""
+    values = await _read_one_adapter(room, room.adapter_type, room.adapter_config, is_primary=True)
+    for extra in room.extra_adapters:
+        extra_values = await _read_one_adapter(room, extra.adapter_type, extra.adapter_config, is_primary=False)
+        values.update(extra_values)
 
     for key, cfg in room.metric_config.items():
         # Only fill in the derived value if the adapter didn't already report one
