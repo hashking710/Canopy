@@ -55,8 +55,6 @@ class SwitchBotAdapter(SensorAdapter):
     }
 
     def __init__(self) -> None:
-        self._token = os.environ.get("CANOPY_SWITCHBOT_TOKEN")
-        self._secret = os.environ.get("CANOPY_SWITCHBOT_SECRET")
         self._session: aiohttp.ClientSession | None = None
 
     async def connect(self, room: Room) -> None:
@@ -66,14 +64,21 @@ class SwitchBotAdapter(SensorAdapter):
         pass  # shared session; never torn down per-room, same as every other adapter
 
     async def read(self, room: Room) -> dict[str, float]:
-        if not self._token or not self._secret:
+        # Read fresh on every call, not cached at __init__: this adapter instance is
+        # long-lived and shared across every room using it (adapters/registry.py),
+        # so a credential set through the dashboard's credentials screen
+        # (routers/secrets.py) must take effect on the very next poll cycle, not
+        # only after a container restart.
+        token = os.environ.get("CANOPY_SWITCHBOT_TOKEN")
+        secret = os.environ.get("CANOPY_SWITCHBOT_SECRET")
+        if not token or not secret:
             raise RuntimeError("switchbot adapter requires CANOPY_SWITCHBOT_TOKEN and CANOPY_SWITCHBOT_SECRET to be set")
         device_id = room.adapter_config.get("device_id")
         if not device_id:
             raise RuntimeError(f"room '{room.id}' has no adapter_config.device_id")
 
         session = self._get_session()
-        headers = sign_headers(self._token, self._secret)
+        headers = sign_headers(token, secret)
         async with session.get(f"{API_BASE}/devices/{device_id}/status", headers=headers) as resp:
             body = await resp.json(content_type=None)
             if resp.status != 200 or body.get("statusCode") != 100:

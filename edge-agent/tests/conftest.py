@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from canopy_agent import models  # noqa: F401  # registers the `rooms` table compliance FKs reference
 from canopy_agent.db import Base
 from canopy_agent.deps import get_db
-from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, license as license_router, operators, rooms
+from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, license as license_router, operators, rooms, secrets as secrets_router
 
 
 @pytest.fixture()
@@ -37,6 +37,7 @@ def client():
     app.include_router(alerts.router)
     app.include_router(license_router.router)
     app.include_router(backup_router.router)
+    app.include_router(secrets_router.router)
     app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as test_client:

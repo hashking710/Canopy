@@ -16,6 +16,11 @@ class ComplianceSync(ABC):
     plugin_name: ClassVar[str] = "unnamed sync"
     plugin_description: ClassVar[str] = ""
     config_schema: ClassVar[dict[str, str]] = {}
+    #: Same shape/purpose as SensorAdapter.required_env_vars — credentials this sync
+    #: target reads from the environment, surfaced so the dashboard's credentials
+    #: settings (routers/secrets.py) can list and set them without hardcoding
+    #: knowledge of any specific sync plugin.
+    required_env_vars: ClassVar[dict[str, str]] = {}
 
     @abstractmethod
     async def sync_plant_batch_created(self, batch: dict) -> None: ...

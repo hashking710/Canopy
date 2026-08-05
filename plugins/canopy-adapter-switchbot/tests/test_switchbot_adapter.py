@@ -121,6 +121,39 @@ async def test_read_from_a_real_server_with_real_signing(monkeypatch):
         await runner.cleanup()
 
 
+async def test_credential_change_takes_effect_on_the_next_read_without_recreating_the_adapter(monkeypatch):
+    """The whole point of reading os.environ inside read() instead of caching it in
+    __init__: a credential set through the dashboard (routers/secrets.py) must take
+    effect on the very next poll cycle on the *same*, already-constructed adapter
+    instance (adapters/registry.py caches one instance per adapter_type)."""
+    received_tokens = []
+
+    async def handler(request):
+        received_tokens.append(request.headers.get("Authorization"))
+        return web.json_response({"statusCode": 100, "body": {}, "message": "success"})
+
+    app = web.Application()
+    app.router.add_get("/v1.1/devices/ABC/status", handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 18202)
+    await site.start()
+    try:
+        monkeypatch.setattr(canopy_adapter_switchbot, "API_BASE", "http://127.0.0.1:18202/v1.1")
+        adapter = SwitchBotAdapter()  # one instance, reused across both reads below
+
+        monkeypatch.setenv("CANOPY_SWITCHBOT_TOKEN", "old-token")
+        monkeypatch.setenv("CANOPY_SWITCHBOT_SECRET", "old-secret")
+        await adapter.read(make_room(device_id="ABC"))
+
+        monkeypatch.setenv("CANOPY_SWITCHBOT_TOKEN", "new-token")  # simulates PUT /api/secrets
+        await adapter.read(make_room(device_id="ABC"))
+
+        assert received_tokens == ["old-token", "new-token"]
+    finally:
+        await runner.cleanup()
+
+
 async def test_error_status_code_raises(monkeypatch):
     monkeypatch.setenv("CANOPY_SWITCHBOT_TOKEN", "t")
     monkeypatch.setenv("CANOPY_SWITCHBOT_SECRET", "s")

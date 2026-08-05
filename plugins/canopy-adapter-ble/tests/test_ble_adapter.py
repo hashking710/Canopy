@@ -1,6 +1,8 @@
 import struct
+from types import SimpleNamespace
 
 import pytest
+import canopy_adapter_ble
 from canopy_adapter_ble import BleAdapter, BleAdvertisementAdapter, decode_ble_value
 from canopy_agent.models import Room
 
@@ -122,6 +124,55 @@ async def test_advertisement_read_without_fields_raises():
 def test_advertisement_plugin_metadata_is_set():
     assert BleAdvertisementAdapter.plugin_name == "BLE (passive advertisement scan)"
     assert "service_data_uuid" in BleAdvertisementAdapter.config_schema
+
+
+# ---- discover() — mocks BleakScanner.discover, same "confirm parsing/mapping,
+# can't verify real hardware" boundary as everything else in this file ---------------
+
+
+async def test_ble_adapter_discover_maps_scan_results(monkeypatch):
+    device = SimpleNamespace(address="AA:BB:CC:DD:EE:FF", name="Xiaomi Sensor")
+    adv = SimpleNamespace(local_name="Xiaomi Sensor", rssi=-60)
+
+    async def fake_discover(timeout, *, return_adv):
+        assert return_adv is True
+        return {device.address: (device, adv)}
+
+    monkeypatch.setattr(canopy_adapter_ble.BleakScanner, "discover", fake_discover)
+
+    results = await BleAdapter.discover()
+    assert results == [{"address": "AA:BB:CC:DD:EE:FF", "name": "Xiaomi Sensor", "rssi": -60}]
+
+
+async def test_ble_adapter_discover_falls_back_to_advertised_local_name(monkeypatch):
+    device = SimpleNamespace(address="11:22:33:44:55:66", name=None)
+    adv = SimpleNamespace(local_name="Unnamed Sensor", rssi=-70)
+
+    async def fake_discover(timeout, *, return_adv):
+        return {device.address: (device, adv)}
+
+    monkeypatch.setattr(canopy_adapter_ble.BleakScanner, "discover", fake_discover)
+
+    [result] = await BleAdapter.discover()
+    assert result["name"] == "Unnamed Sensor"
+
+
+def test_ble_adapter_supports_discovery():
+    assert BleAdapter.supports_discovery is True
+    assert BleAdvertisementAdapter.supports_discovery is True
+
+
+async def test_advertisement_adapter_discover_shares_the_same_scan(monkeypatch):
+    device = SimpleNamespace(address="AA:BB:CC:DD:EE:FF", name="Mijia")
+    adv = SimpleNamespace(local_name="Mijia", rssi=-55)
+
+    async def fake_discover(timeout, *, return_adv):
+        return {device.address: (device, adv)}
+
+    monkeypatch.setattr(canopy_adapter_ble.BleakScanner, "discover", fake_discover)
+
+    results = await BleAdvertisementAdapter.discover()
+    assert results == [{"address": "AA:BB:CC:DD:EE:FF", "name": "Mijia", "rssi": -55}]
 
 
 def test_advertisement_field_decode_reuses_decode_ble_value_with_byte_offset():

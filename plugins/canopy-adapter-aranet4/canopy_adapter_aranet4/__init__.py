@@ -22,11 +22,12 @@ from __future__ import annotations
 import struct
 from typing import ClassVar
 
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
 from canopy_agent.adapters.base import SensorAdapter
 from canopy_agent.models import Room
 
 CONNECT_TIMEOUT_SECONDS = 10.0
+SCAN_TIMEOUT_SECONDS = 15.0
 
 # Aranet's custom BLE service/characteristic — community-documented via the `aranet4`
 # project, not an official published spec.
@@ -47,6 +48,7 @@ class Aranet4Adapter(SensorAdapter):
     plugin_description = "Aranet4 NDIR CO2 sensor — accurate real CO2, plus temp/RH/pressure, over BLE."
     category: ClassVar[str] = "bluetooth"
     config_schema: ClassVar[dict[str, str]] = {"address": "Aranet4's BLE MAC address"}
+    supports_discovery: ClassVar[bool] = True
     default_metric_config: ClassVar[dict[str, dict]] = {
         "co2_ppm": {"label": "CO2", "unit": "ppm", "decimals": 0},
         "temp_f": {"label": "temp", "unit": "°F", "decimals": 1},
@@ -59,6 +61,20 @@ class Aranet4Adapter(SensorAdapter):
 
     async def disconnect(self, room: Room) -> None:
         pass  # no persistent connection is held between reads
+
+    @classmethod
+    async def discover(cls) -> list[dict]:
+        """Scans like the generic BLE adapters, but filters to devices whose
+        advertised name looks like an Aranet — real Aranet4/Aranet2 units advertise
+        as "Aranet4 XXXXX"/"Aranet2 XXXXX", so this narrows a noisy room-full-of-BLE
+        scan down to the devices actually relevant to this adapter, unlike the
+        generic BLE adapters which can't know what name to look for."""
+        found = await BleakScanner.discover(timeout=SCAN_TIMEOUT_SECONDS, return_adv=True)
+        return [
+            {"address": device.address, "name": device.name or adv.local_name, "rssi": adv.rssi}
+            for device, adv in found.values()
+            if (device.name or adv.local_name or "").lower().startswith("aranet")
+        ]
 
     async def read(self, room: Room) -> dict[str, float]:
         address = room.adapter_config.get("address")

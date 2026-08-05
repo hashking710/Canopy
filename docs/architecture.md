@@ -310,22 +310,74 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
     text inline (e.g. "govee adapter requires CANOPY_GOVEE_API_KEY to be set"), not
     only as a `title` hover tooltip — invisible on touch devices, and this is
     exactly the message a non-technical user needs to actually see to fix it.
-  - **Deliberately not built in this pass** — flagged as real gaps, not solved: (1)
-    cloud-adapter credentials are still env-var-only, read once at process start
-    (`adapters/registry.py` caches one instance per `adapter_type` for the process
-    lifetime) — changing one still needs editing `docker-compose.yml`/`.env` and a
-    container restart; a real fix means either a DB-backed, hot-reloadable secrets
-    store or moving credential reads from `__init__` into `read()` across every
-    cloud adapter, both real architecture/security decisions bigger than this pass.
-    (2) No device discovery (mDNS/SSDP/BLE scan) — every local-network and BLE
-    adapter still requires the user to already know a host/IP/MAC from some other
-    tool. (3) `room_type` stayed a freetext-with-datalist field rather than a
-    strict dropdown — converting it would break legitimate custom room types
-    (`dry_cure`, `vault`, `press`, ...) that don't feed the plant-count tally;
-    the existing inline warning about the three tally-relevant values
-    (`greenhouse`/`clone_room`/`mother_room`) was judged adequate.
+  - **Deliberately not built in this pass** — flagged as real gaps at the time, both
+    since closed (see "In-app credentials + BLE device discovery" below): (1)
+    cloud-adapter credentials were env-var-only, read once at process start — fixed.
+    (2) No device discovery — fixed for BLE, explicitly not attempted for
+    local-network devices; see below for why. (3) `room_type` stayed a
+    freetext-with-datalist field rather than a strict dropdown — converting it would
+    break legitimate custom room types (`dry_cure`, `vault`, `press`, ...) that don't
+    feed the plant-count tally; the existing inline warning about the three
+    tally-relevant values (`greenhouse`/`clone_room`/`mother_room`) was judged
+    adequate. Still not built.
 
 ![Master control panel on a single-site facility — a friendly explainer instead of a raw fetch error](screenshots/10-master-sites.png)
+
+- **In-app credentials + BLE device discovery (built)** — closes the two real gaps
+  flagged in the ease-of-use pass above.
+  - **Hot-reloadable credentials**: a new `FacilitySecret` table (`models.py`) is a
+    minimal DB-backed key/value store — deliberately plaintext, matching the existing
+    `.env`-file threat model rather than adding encryption-at-rest for a threat model
+    that doesn't otherwise call for it. `GET/PUT/DELETE /api/secrets`
+    (`routers/secrets.py`) lists, sets, and clears credentials; the settable-key list
+    is aggregated live from every *installed* adapter's/compliance-sync plugin's
+    `required_env_vars` (`available_adapter_types()` /
+    `compliance_sync.registry.available_sync_types()`) — nothing hardcoded, so it's
+    always accurate to what's actually installed. Write-only by design: `GET`
+    reports only `is_set`/`set_via_dashboard`, never the value itself. On startup,
+    `services/secrets_bootstrap.py` replays every stored row into `os.environ`
+    before any adapter is constructed — a DB-set value wins over whatever
+    `docker-compose.yml`/`.env` already put there.
+    Five cloud adapters (Govee, SwitchBot, AC Infinity, Rachio, RainMachine) had
+    their credential reads moved from `__init__` (cached once per process, since
+    `adapters/registry.py` caches one adapter instance per `adapter_type` for the
+    process's entire lifetime) into `read()` (evaluated fresh every poll cycle) —
+    the mechanism that makes a dashboard-set credential take effect on the very next
+    poll, no restart needed. Tuya needed no change: its credentials are entirely
+    per-room `adapter_config`, already read fresh. AC Infinity and RainMachine each
+    cache an authenticated session/token, which would otherwise keep working under a
+    now-stale credential until it happened to fail — both track which credential
+    value their cached session was established with and force a real re-login when
+    it no longer matches. Surfaced in the dashboard at `Settings` →
+    "Sensor & sync credentials".
+  - **BLE device discovery**: `SensorAdapter.discover()` (`adapters/base.py`) is an
+    optional classmethod, gated by a `supports_discovery` class flag so calling code
+    never needs an `isinstance`/`hasattr` check to find out an adapter doesn't
+    implement it. `POST /api/rooms/adapters/{adapter_type}/discover`
+    (`routers/rooms.py`) calls it. Implemented for `ble`/`ble_advertisement`
+    (`canopy-adapter-ble`, a passive `BleakScanner.discover()` scan, address + name +
+    RSSI) and `aranet4` (`canopy-adapter-aranet4`, the same scan filtered to devices
+    whose advertised name starts with "Aranet" — narrows a noisy roomful of BLE
+    traffic down to the one device type this adapter actually talks to). The
+    room-creation UI's new `DeviceDiscoveryPanel` shows a "scan for nearby devices"
+    button for any adapter with `supports_discovery = true`; picking a result fills
+    `adapter_config.address` directly — no external BLE scanner app needed first.
+  - **Local-network discovery (Shelly, Ecowitt, and similar) was deliberately not
+    built**, not merely deferred: `docker inspect` against a running edge-agent
+    container confirmed it sits on Docker's own isolated bridge subnet (e.g.
+    `192.168.16.0/24`), completely separate from the host's real LAN. mDNS/SSDP
+    discovery depends on receiving broadcast/multicast traffic from the real LAN,
+    which never reaches a bridge-networked container — it would need
+    `network_mode: host` in `docker-compose.yml` to work at all, a real
+    security/isolation tradeoff (the container would then share the host's entire
+    network namespace) that wasn't made unilaterally here. BLE discovery has no such
+    problem: it works through the same direct hardware Bluetooth adapter access the
+    `ble` and `aranet4` adapters' own `read()` already require via `bleak` — a
+    connection to a local Bluetooth controller, not a request that has to traverse
+    the container's network boundary at all. Outbound HTTP to a specific,
+    already-known IP (how Shelly's `read()` itself works today) is unaffected by any
+    of this either — only *discovering* an unknown device's IP via broadcast is the
+    part that doesn't work under bridge networking.
 
 - **Publishing (built)**: `edge-agent/canopy_agent/services/mqtt_publisher.py` publishes
   every room's current state as a *retained* MQTT message on

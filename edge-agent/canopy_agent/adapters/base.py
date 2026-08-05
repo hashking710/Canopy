@@ -42,6 +42,25 @@ class SensorAdapter(ABC):
     #: topics, BLE byte layouts, GPIO's per-kind sensors) — nothing to sensibly default
     #: there. Purely a UI convenience; the user can still edit/remove rows afterward.
     default_metric_config: ClassVar[dict[str, dict]] = {}
+    #: True for adapters that implement discover() for real — lets the room-creation
+    #: UI show a "scan for nearby devices" button only where it'll actually work,
+    #: without needing to call discover() speculatively just to find out. See
+    #: docs/architecture.md for why most cloud/local-network adapters can't
+    #: implement this under Docker's default bridge networking (BLE and outbound
+    #: HTTP to a known IP both work; broadcast-based discovery like mDNS/SSDP does
+    #: not, the same constraint the room-creation UI's EnvVarNotice already documents
+    #: for required_env_vars).
+    supports_discovery: ClassVar[bool] = False
+
+    @classmethod
+    async def discover(cls) -> list[dict]:
+        """Optional: scan for nearby devices this adapter could talk to, returning
+        [{"address": ..., "name": ..., ...}] to pre-fill adapter_config so a user
+        doesn't need an external scanner tool before adding a room. Only meaningful
+        when supports_discovery is True; the default here exists purely so calling
+        code (the /discover endpoint) doesn't need an isinstance/hasattr check to
+        find out an adapter doesn't support it."""
+        raise NotImplementedError(f"{cls.__name__} does not support device discovery")
 
     @abstractmethod
     async def connect(self, room: Room) -> None: ...

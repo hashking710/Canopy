@@ -58,10 +58,14 @@ class ACInfinityCloudAdapter(SensorAdapter):
     }
 
     def __init__(self) -> None:
-        self._email = os.environ.get("CANOPY_AC_INFINITY_EMAIL")
-        self._password = os.environ.get("CANOPY_AC_INFINITY_PASSWORD")
         self._session: aiohttp.ClientSession | None = None
         self._user_id: str | None = None
+        # Which (email, password) the cached _user_id session was established
+        # with — compared against the freshly-read env vars on every call so a
+        # credential changed through the dashboard (routers/secrets.py) forces a
+        # real re-login instead of silently continuing to use a session
+        # authenticated under the old, now-stale credentials.
+        self._logged_in_with: tuple[str | None, str | None] = (None, None)
         self._controllers_by_dev_id: dict[str, dict] = {}
         self._controllers_fetched_at: float = 0.0
 
@@ -72,7 +76,13 @@ class ACInfinityCloudAdapter(SensorAdapter):
         pass  # session is shared across rooms; nothing to tear down per-room
 
     async def read(self, room: Room) -> dict[str, float]:
-        if not self._email or not self._password:
+        # Read fresh on every call, not cached at __init__: this adapter instance
+        # is long-lived and shared across every room using it
+        # (adapters/registry.py), so a credential set through the dashboard must
+        # take effect on the very next poll cycle, not only after a restart.
+        email = os.environ.get("CANOPY_AC_INFINITY_EMAIL")
+        password = os.environ.get("CANOPY_AC_INFINITY_PASSWORD")
+        if not email or not password:
             raise RuntimeError(
                 "ac_infinity_cloud adapter requires CANOPY_AC_INFINITY_EMAIL and "
                 "CANOPY_AC_INFINITY_PASSWORD to be set"
@@ -81,7 +91,7 @@ class ACInfinityCloudAdapter(SensorAdapter):
         if not dev_id:
             raise RuntimeError(f"room '{room.id}' has no adapter_config.dev_id")
 
-        await self._ensure_controllers_fresh()
+        await self._ensure_controllers_fresh(email, password)
         controller = self._controllers_by_dev_id.get(dev_id)
         if controller is None:
             raise RuntimeError(f"AC Infinity account has no controller with devId={dev_id}")
@@ -96,12 +106,13 @@ class ACInfinityCloudAdapter(SensorAdapter):
             "vpd_kpa": controller.get("vpdnums", 0) / 100,
         }
 
-    async def _ensure_controllers_fresh(self) -> None:
+    async def _ensure_controllers_fresh(self, email: str, password: str) -> None:
         if time.monotonic() - self._controllers_fetched_at < CONTROLLER_CACHE_SECONDS:
             return
         session = self._get_session()
-        if self._user_id is None:
-            await self._login(session)
+        if self._user_id is None or self._logged_in_with != (email, password):
+            await self._login(session, email, password)
+            self._logged_in_with = (email, password)
         controllers = await self._get_account_controllers(session)
         self._controllers_by_dev_id = {str(c["devId"]): c for c in controllers}
         self._controllers_fetched_at = time.monotonic()
@@ -111,13 +122,13 @@ class ACInfinityCloudAdapter(SensorAdapter):
             self._session = aiohttp.ClientSession()
         return self._session
 
-    async def _login(self, session: aiohttp.ClientSession) -> None:
+    async def _login(self, session: aiohttp.ClientSession, email: str, password: str) -> None:
         # AC Infinity's API rejects passwords over 25 characters; their apps silently
         # truncate on submit, so we must match that or a correct password will "fail".
-        truncated_password = self._password[:25]
+        truncated_password = password[:25]
         async with session.post(
             f"{HOST}{LOGIN_PATH}",
-            data={"appEmail": self._email, "appPasswordl": truncated_password},
+            data={"appEmail": email, "appPasswordl": truncated_password},
             headers={"User-Agent": USER_AGENT},
         ) as resp:
             body = await resp.json(content_type=None)

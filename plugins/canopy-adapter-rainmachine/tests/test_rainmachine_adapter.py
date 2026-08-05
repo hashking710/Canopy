@@ -115,6 +115,42 @@ async def test_read_caches_the_token_across_reads(monkeypatch):
         await runner.cleanup()
 
 
+async def test_password_change_forces_a_real_relogin_not_a_stale_token(monkeypatch):
+    """The token cache above is per-host, for efficiency — but it must not silently
+    keep using a token issued under a password the dashboard (routers/secrets.py)
+    has since changed. Two logins, two different passwords, one adapter instance."""
+    received_passwords = []
+
+    async def login_handler(request):
+        body = await request.json()
+        received_passwords.append(body["pwd"])
+        return web.json_response({"access_token": f"tok-{len(received_passwords)}", "statusCode": 0})
+
+    async def zone_handler(request):
+        return web.json_response({"zones": [{"uid": 1, "state": 0}]})
+
+    app = web.Application()
+    app.router.add_post("/api/4/auth/login", login_handler)
+    app.router.add_get("/api/4/zone", zone_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 18504)
+    await site.start()
+    try:
+        adapter = RainMachineAdapter()  # one instance, reused across both reads below
+        room = make_room(host="http://127.0.0.1:18504", zone_id=1)
+
+        monkeypatch.setenv("CANOPY_RAINMACHINE_PASSWORD", "old-password")
+        await adapter.read(room)
+
+        monkeypatch.setenv("CANOPY_RAINMACHINE_PASSWORD", "new-password")  # simulates PUT /api/secrets
+        await adapter.read(room)
+
+        assert received_passwords == ["old-password", "new-password"]
+    finally:
+        await runner.cleanup()
+
+
 async def test_login_failure_raises_a_clear_error(monkeypatch):
     monkeypatch.setenv("CANOPY_RAINMACHINE_PASSWORD", "wrong-password")
 

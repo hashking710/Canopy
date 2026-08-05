@@ -15,7 +15,7 @@ if sys.platform == "win32":
 from canopy_agent.auth import require_token
 from canopy_agent.db import SessionLocal
 from canopy_agent.migrate import upgrade_to_head
-from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, license as license_router, operators, rooms, ws
+from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, license as license_router, operators, rooms, secrets as secrets_router, ws
 from canopy_agent.seed import seed
 from canopy_agent.seed_compliance import seed_compliance
 from canopy_agent.services.audit_relay import subscribe_relay_forever
@@ -24,6 +24,7 @@ from canopy_agent.services.demo_rate_limit import DemoRateLimitMiddleware
 from canopy_agent.services.demo_reset import demo_reset_forever, reset_demo_data
 from canopy_agent.services.poller import poll_forever
 from canopy_agent.services.retention import retention_forever
+from canopy_agent.services.secrets_bootstrap import load_secrets_into_environ
 
 
 SEED_DEMO_DATA = os.environ.get("CANOPY_SEED_DEMO_DATA", "false").lower() in ("1", "true", "yes")
@@ -37,6 +38,19 @@ DEMO_MODE = os.environ.get("CANOPY_DEMO_MODE", "false").lower() in ("1", "true",
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     upgrade_to_head()
+
+    # Before anything else touches os.environ (the poller, adapter construction) —
+    # a credential set via the dashboard (routers/secrets.py) needs to survive a
+    # restart, and this is what replays it back into the process environment every
+    # adapter still reads from. DB wins over whatever docker-compose.yml/.env
+    # already set, since that's the "someone explicitly configured this via the
+    # UI" path.
+    db = SessionLocal()
+    try:
+        load_secrets_into_environ(db)
+    finally:
+        db.close()
+
     if DEMO_MODE:
         # Always start from a known-good demo dataset, whether this is a fresh
         # volume or a restart of a long-running demo container.
@@ -100,6 +114,7 @@ app.include_router(operators.router, dependencies=[Depends(require_token)])
 app.include_router(alerts.router, dependencies=[Depends(require_token)])
 app.include_router(license_router.router, dependencies=[Depends(require_token)])
 app.include_router(backup_router.router, dependencies=[Depends(require_token)])
+app.include_router(secrets_router.router, dependencies=[Depends(require_token)])
 
 
 @app.get("/api/health")

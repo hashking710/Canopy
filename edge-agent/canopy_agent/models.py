@@ -159,3 +159,30 @@ class AlertEvent(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     acknowledged_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class FacilitySecret(Base):
+    """
+    A credential a sensor-adapter or compliance-sync plugin reads via os.environ
+    (see SensorAdapter.required_env_vars / ComplianceSync.required_env_vars) —
+    settable from the dashboard instead of only via docker-compose.yml/.env plus a
+    container restart. Setting one here (routers/secrets.py) writes it to
+    os.environ immediately; every cloud adapter reads its credential fresh on each
+    read()/sync call rather than caching it at __init__ (see each adapter's own
+    comment on why), so a change here takes effect on the very next poll cycle, not
+    after a restart. Also persisted here so a restart doesn't lose it —
+    services/secrets_bootstrap.py replays every row into os.environ on startup.
+
+    `key` is validated against a real installed plugin's required_env_vars at write
+    time (routers/secrets.py) — this is not a general-purpose env var editor.
+    Deliberately plaintext, same threat model as the .env file it replaces: this is
+    a single-operator local-network appliance (see docs/architecture.md's Auth
+    section) where anyone with filesystem access to the SQLite file already had
+    equivalent access via docker-compose.yml/.env, so this isn't a new exposure.
+    """
+
+    __tablename__ = "facility_secrets"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

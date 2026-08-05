@@ -48,6 +48,12 @@ def _register_plugin(factories: dict[str, type[ComplianceSync]], ep: EntryPoint)
     factories[ep.name] = sync_cls
 
 
+def available_sync_types() -> dict[str, type[ComplianceSync]]:
+    """sync_type -> class, for anything that wants to list/describe what's
+    installed (mirrors adapters.registry.available_adapter_types)."""
+    return dict(_load_factories())
+
+
 def get_compliance_sync() -> ComplianceSync:
     global _instance
     if _instance is None:

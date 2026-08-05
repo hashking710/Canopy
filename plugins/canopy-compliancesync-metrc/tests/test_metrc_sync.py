@@ -285,7 +285,7 @@ async def test_non_2xx_response_raises_runtime_error(server, monkeypatch):
 
 def test_plugin_metadata_is_set():
     assert MetrcComplianceSync.plugin_name == "METRC"
-    assert "CANOPY_METRC_VENDOR_API_KEY" in MetrcComplianceSync.config_schema
+    assert "CANOPY_METRC_VENDOR_API_KEY" in MetrcComplianceSync.required_env_vars
 
 
 def test_missing_credentials_warns_but_does_not_crash(monkeypatch, caplog):

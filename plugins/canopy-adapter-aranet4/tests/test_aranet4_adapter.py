@@ -1,6 +1,8 @@
 import struct
+from types import SimpleNamespace
 
 import pytest
+import canopy_adapter_aranet4
 from canopy_adapter_aranet4 import Aranet4Adapter, decode_aranet4_reading
 from canopy_agent.models import Room
 
@@ -49,3 +51,49 @@ def test_plugin_metadata_is_set():
     assert Aranet4Adapter.plugin_name == "Aranet4 (BLE CO2)"
     assert "address" in Aranet4Adapter.config_schema
     assert set(Aranet4Adapter.default_metric_config) == {"co2_ppm", "temp_f", "rh_pct", "pressure_hpa"}
+    assert Aranet4Adapter.supports_discovery is True
+
+
+# ---- discover() — mocks BleakScanner.discover, same "confirm parsing/mapping, can't
+# verify real hardware" boundary as everything else in this file ---------------------
+
+
+async def test_discover_filters_to_devices_named_like_an_aranet(monkeypatch):
+    aranet = SimpleNamespace(address="AA:BB:CC:DD:EE:FF", name="Aranet4 1A2B3")
+    other = SimpleNamespace(address="11:22:33:44:55:66", name="Some Other Sensor")
+    aranet_adv = SimpleNamespace(local_name="Aranet4 1A2B3", rssi=-50)
+    other_adv = SimpleNamespace(local_name="Some Other Sensor", rssi=-65)
+
+    async def fake_discover(timeout, *, return_adv):
+        assert return_adv is True
+        return {aranet.address: (aranet, aranet_adv), other.address: (other, other_adv)}
+
+    monkeypatch.setattr(canopy_adapter_aranet4.BleakScanner, "discover", fake_discover)
+
+    results = await Aranet4Adapter.discover()
+    assert results == [{"address": "AA:BB:CC:DD:EE:FF", "name": "Aranet4 1A2B3", "rssi": -50}]
+
+
+async def test_discover_falls_back_to_advertised_local_name_for_the_name_filter(monkeypatch):
+    device = SimpleNamespace(address="AA:BB:CC:DD:EE:FF", name=None)
+    adv = SimpleNamespace(local_name="Aranet2 99999", rssi=-50)
+
+    async def fake_discover(timeout, *, return_adv):
+        return {device.address: (device, adv)}
+
+    monkeypatch.setattr(canopy_adapter_aranet4.BleakScanner, "discover", fake_discover)
+
+    [result] = await Aranet4Adapter.discover()
+    assert result["name"] == "Aranet2 99999"
+
+
+async def test_discover_returns_nothing_when_no_aranet_nearby(monkeypatch):
+    other = SimpleNamespace(address="11:22:33:44:55:66", name="Some Other Sensor")
+    other_adv = SimpleNamespace(local_name="Some Other Sensor", rssi=-65)
+
+    async def fake_discover(timeout, *, return_adv):
+        return {other.address: (other, other_adv)}
+
+    monkeypatch.setattr(canopy_adapter_aranet4.BleakScanner, "discover", fake_discover)
+
+    assert await Aranet4Adapter.discover() == []

@@ -40,6 +40,27 @@ and enforces a 10s timeout on `read()` (a hung adapter can't stall the whole cyc
 either), so a real exception is the correct, safe way to signal "this room didn't get a
 reading this cycle."
 
+**Credentials**: if your adapter needs an API key/token shared across every room using
+it, declare it in `required_env_vars: ClassVar[dict[str, str]] = {"CANOPY_MY_DEVICE_API_KEY": "..."}`
+and read it with `os.environ.get(...)` **inside `read()`, not `__init__`**. One adapter
+instance is cached per `adapter_type` for the whole process lifetime (see above), so a
+credential read at `__init__` time is fixed forever until a restart; reading it fresh
+inside `read()` is what lets someone set/change it from the dashboard's Settings page
+(`Settings` → "Sensor & sync credentials", backed by `routers/secrets.py`) and have it
+take effect on the very next poll cycle. If your adapter caches an authenticated
+session/token rather than re-authenticating every call, track which credential value
+that session was established with and force a fresh login when it no longer matches —
+see `canopy-adapter-ac-infinity`/`canopy-adapter-rainmachine` for the pattern.
+
+**Device discovery (optional)**: if your device can be found via a local scan — BLE is
+the realistic case; see `docs/architecture.md`'s "In-app credentials + BLE device
+discovery" section for why broadcast-based LAN discovery (mDNS/SSDP) doesn't work under
+Canopy's default Docker networking — set `supports_discovery: ClassVar[bool] = True`
+and implement `async def discover(cls) -> list[dict]:` returning
+`[{"address": ..., "name": ...}, ...]`. The room-creation UI shows a "scan for nearby
+devices" button automatically for any adapter with the flag set; leave it `False`
+(the default) if there's nothing to scan for.
+
 ## A minimal plugin package
 
 ```

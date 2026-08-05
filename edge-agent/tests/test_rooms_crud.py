@@ -185,3 +185,15 @@ def test_available_adapters_include_plugin_metadata(client):
     assert mock_entry["required_env_vars"] == {}
     assert "default_metric_config" in mock_entry
     assert mock_entry["category"] == "testing"
+    assert mock_entry["supports_discovery"] is False
+
+
+def test_discover_rejects_unknown_adapter_type(client):
+    resp = client.post("/api/rooms/adapters/not-a-real-adapter/discover")
+    assert resp.status_code == 404
+
+
+def test_discover_rejects_adapter_without_discovery_support(client):
+    resp = client.post("/api/rooms/adapters/mock/discover")
+    assert resp.status_code == 400
+    assert "does not support device discovery" in resp.json()["detail"]

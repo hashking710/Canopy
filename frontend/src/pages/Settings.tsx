@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type BackupStatus } from "../api/client";
+import { api, type BackupStatus, type SecretInfo } from "../api/client";
 import { Card } from "../components/Card";
 import { TopNav } from "../components/TopNav";
 import { useSettings } from "../hooks/useSettings";
@@ -53,6 +53,91 @@ function BackupsCard() {
         {submitting ? "backing up…" : "back up now"}
       </button>
       {runError && <p className="form-error" role="alert">{runError}</p>}
+    </Card>
+  );
+}
+
+// One row per credential (e.g. CANOPY_GOVEE_API_KEY) — its own component, not a loop
+// inside CredentialsCard, so each row can call useSubmitState() once for its own
+// save/clear action independently (rules of hooks: can't call a hook a variable
+// number of times inside one component body, but a variable number of *component
+// instances* each calling it once is exactly what this is).
+function SecretRow({ secret, onChange }: { secret: SecretInfo; onChange: () => void }) {
+  const [value, setValue] = useState("");
+  const { submitting, error, success, run } = useSubmitState();
+
+  const save = () =>
+    run(async () => {
+      await api.setSecret(secret.key, value);
+      setValue("");
+      onChange();
+    });
+
+  const clear = () =>
+    run(async () => {
+      await api.clearSecret(secret.key);
+      onChange();
+    });
+
+  return (
+    <div className="field-block" style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <code>{secret.key}</code>
+        <span className={secret.is_set ? "stat-label" : "form-error"}>
+          {secret.is_set ? "configured" : "needs setup"}
+        </span>
+      </div>
+      <p className="stat-label" style={{ margin: "4px 0 8px" }}>
+        {secret.description}
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={secret.is_set ? "enter a new value to replace it" : "not set"}
+          style={{ flex: "1 1 240px" }}
+        />
+        <button className="inline-button" onClick={save} disabled={submitting || !value.trim()}>
+          {submitting ? "saving…" : "save"}
+        </button>
+        {secret.set_via_dashboard && (
+          <button className="inline-button" onClick={clear} disabled={submitting}>
+            clear
+          </button>
+        )}
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {success && <p className="stat-label">Saved — takes effect on the next poll cycle, no restart needed.</p>}
+    </div>
+  );
+}
+
+function CredentialsCard() {
+  const [secrets, setSecrets] = useState<SecretInfo[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = () => {
+    api.getSecrets().then(setSecrets).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  };
+
+  useEffect(refresh, []);
+
+  if (error) return <Card><p className="form-error" role="alert">{error}</p></Card>;
+  if (secrets !== null && secrets.length === 0) return null; // nothing installed needs credentials
+
+  return (
+    <Card>
+      <p className="card-subtitle">Sensor & sync credentials</p>
+      <p className="stat-label" style={{ margin: "4px 0 12px" }}>
+        Credentials every installed cloud sensor adapter or compliance-sync plugin needs — set here instead of
+        editing docker-compose.yml/.env and restarting. Takes effect on the very next poll cycle. Values are
+        write-only: once saved, this page never shows them back.
+      </p>
+      {!secrets && <p className="stat-label">Loading…</p>}
+      {secrets?.map((s) => (
+        <SecretRow key={s.key} secret={s} onChange={refresh} />
+      ))}
     </Card>
   );
 }
@@ -114,6 +199,7 @@ export function Settings() {
         </div>
       </Card>
 
+      <CredentialsCard />
       <BackupsCard />
     </div>
   );

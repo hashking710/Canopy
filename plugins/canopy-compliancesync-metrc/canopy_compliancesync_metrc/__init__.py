@@ -86,13 +86,14 @@ class MetrcComplianceSync(ComplianceSync):
         "creation) aren't confirmed anywhere accessible without a real METRC account "
         "and are left unimplemented rather than guessed — see this package's docstring."
     )
-    config_schema: ClassVar[dict[str, str]] = {
+    # The three actually-required credentials (settable via the dashboard's
+    # credentials screen, see routers/secrets.py) — CANOPY_METRC_STATE/_SANDBOX/
+    # _BASE_URL are optional overrides with working defaults, not secrets, so they
+    # stay documented in this module's own docstring only, not listed here.
+    required_env_vars: ClassVar[dict[str, str]] = {
         "CANOPY_METRC_VENDOR_API_KEY": "Software integrator's API key",
         "CANOPY_METRC_USER_API_KEY": "This licensee's user API key",
         "CANOPY_METRC_LICENSE_NUMBER": "The facility's METRC license number",
-        "CANOPY_METRC_STATE": "Two-letter state code, e.g. 'ca' (default 'ca')",
-        "CANOPY_METRC_SANDBOX": "'true' to hit METRC's sandbox host instead of production",
-        "CANOPY_METRC_BASE_URL": "Overrides the computed host entirely, if set",
     }
 
     def __init__(self) -> None:

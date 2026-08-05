@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AddRoomForm } from "./AddRoomForm";
 import type { AdapterInfo } from "../api/client";
 
-const { getAvailableAdapters } = vi.hoisted(() => ({
+const { getAvailableAdapters, discoverAdapterDevices } = vi.hoisted(() => ({
   getAvailableAdapters: vi.fn(),
+  discoverAdapterDevices: vi.fn(),
 }));
 
 vi.mock("../api/client", async () => {
@@ -15,6 +16,7 @@ vi.mock("../api/client", async () => {
     api: {
       ...actual.api,
       getAvailableAdapters: (...args: unknown[]) => getAvailableAdapters(...args),
+      discoverAdapterDevices: (...args: unknown[]) => discoverAdapterDevices(...args),
     },
   };
 });
@@ -28,6 +30,7 @@ function adapter(overrides: Partial<AdapterInfo>): AdapterInfo {
     config_schema: {},
     required_env_vars: {},
     default_metric_config: {},
+    supports_discovery: false,
     ...overrides,
   };
 }
@@ -49,6 +52,14 @@ const modbus = adapter({
   plugin_name: "Modbus TCP/RTU",
   category: "local",
   config_schema: { registers: "list of register definitions" },
+});
+
+const ble = adapter({
+  adapter_type: "ble",
+  plugin_name: "BLE (generic GATT characteristic)",
+  category: "bluetooth",
+  config_schema: { address: "BLE MAC address", characteristics: "list of characteristic definitions" },
+  supports_discovery: true,
 });
 
 async function openForm() {
@@ -101,5 +112,49 @@ describe("AddRoomForm — adapter-driven metric pre-fill", () => {
     expect(labels).toEqual(["Cloud account", "Local network", "Testing"]);
     expect(within(groups[0]).getByRole("option", { name: "Govee (Cloud API)" })).toBeInTheDocument();
     expect(within(groups[1]).getByRole("option", { name: "Modbus TCP/RTU" })).toBeInTheDocument();
+  });
+});
+
+describe("AddRoomForm — device discovery", () => {
+  beforeEach(() => {
+    getAvailableAdapters.mockReset();
+    discoverAdapterDevices.mockReset();
+    getAvailableAdapters.mockResolvedValue([adapter({}), ble, modbus]);
+  });
+
+  it("does not show a scan button for adapters without discovery support", async () => {
+    await openForm();
+    await waitFor(() => expect(getAvailableAdapters).toHaveBeenCalled());
+
+    await userEvent.selectOptions(screen.getByLabelText("sensor adapter"), "modbus");
+    expect(screen.queryByText("scan for nearby devices")).not.toBeInTheDocument();
+  });
+
+  it("scans and lets you pick a discovered device to fill the address field", async () => {
+    discoverAdapterDevices.mockResolvedValue([
+      { address: "AA:BB:CC:DD:EE:FF", name: "Xiaomi Sensor", rssi: -60 },
+    ]);
+    await openForm();
+    await waitFor(() => expect(getAvailableAdapters).toHaveBeenCalled());
+
+    await userEvent.selectOptions(screen.getByLabelText("sensor adapter"), "ble");
+    await userEvent.click(screen.getByText("scan for nearby devices"));
+
+    await waitFor(() => expect(discoverAdapterDevices).toHaveBeenCalledWith("ble"));
+    expect(await screen.findByText("Xiaomi Sensor")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("use this"));
+    expect(screen.getByLabelText(/^address/)).toHaveValue("AA:BB:CC:DD:EE:FF");
+  });
+
+  it("shows a message when no devices are found", async () => {
+    discoverAdapterDevices.mockResolvedValue([]);
+    await openForm();
+    await waitFor(() => expect(getAvailableAdapters).toHaveBeenCalled());
+
+    await userEvent.selectOptions(screen.getByLabelText("sensor adapter"), "ble");
+    await userEvent.click(screen.getByText("scan for nearby devices"));
+
+    expect(await screen.findByText(/No devices found nearby/)).toBeInTheDocument();
   });
 });

@@ -86,12 +86,17 @@ class BleAdapter(SensorAdapter):
         "address": "BLE MAC address (or UUID on macOS) of the device",
         "characteristics": "list of {metric, uuid, format, scale, offset, c_to_f}",
     }
+    supports_discovery: ClassVar[bool] = True
 
     async def connect(self, room: Room) -> None:
         pass  # connects fresh on every read(), see read()
 
     async def disconnect(self, room: Room) -> None:
         pass  # no persistent connection is held between reads
+
+    @classmethod
+    async def discover(cls) -> list[dict]:
+        return await scan_for_nearby_devices()
 
     async def read(self, room: Room) -> dict[str, float]:
         config = room.adapter_config
@@ -135,6 +140,18 @@ def decode_ble_value(raw: bytes, char: dict) -> float:
     return value
 
 
+async def scan_for_nearby_devices() -> list[dict]:
+    """Shared by both BLE adapter classes — a passive scan sees the same
+    advertisements regardless of whether a given device will end up being talked to
+    via GATT connection (BleAdapter) or advertisement parsing
+    (BleAdvertisementAdapter), so there's no reason to scan twice or differently."""
+    found = await BleakScanner.discover(timeout=SCAN_TIMEOUT_SECONDS, return_adv=True)
+    return [
+        {"address": device.address, "name": device.name or adv.local_name, "rssi": adv.rssi}
+        for device, adv in found.values()
+    ]
+
+
 class BleAdvertisementAdapter(SensorAdapter):
     """
     room.adapter_config shape:
@@ -170,12 +187,17 @@ class BleAdvertisementAdapter(SensorAdapter):
         "service_data_uuid": "Which advertisement service-data UUID to read from",
         "fields": "list of {metric, byte_offset, format, scale, offset, c_to_f}",
     }
+    supports_discovery: ClassVar[bool] = True
 
     async def connect(self, room: Room) -> None:
         pass
 
     async def disconnect(self, room: Room) -> None:
         pass
+
+    @classmethod
+    async def discover(cls) -> list[dict]:
+        return await scan_for_nearby_devices()
 
     async def read(self, room: Room) -> dict[str, float]:
         config = room.adapter_config

@@ -54,7 +54,6 @@ class RachioAdapter(SensorAdapter):
     }
 
     def __init__(self) -> None:
-        self._api_key = os.environ.get("CANOPY_RACHIO_API_KEY")
         self._session: aiohttp.ClientSession | None = None
 
     async def connect(self, room: Room) -> None:
@@ -64,7 +63,13 @@ class RachioAdapter(SensorAdapter):
         pass  # shared session; never torn down per-room, same as every other adapter
 
     async def read(self, room: Room) -> dict[str, float]:
-        if not self._api_key:
+        # Read fresh on every call, not cached at __init__: this adapter instance is
+        # long-lived and shared across every room using it (adapters/registry.py),
+        # so a credential set through the dashboard's credentials screen
+        # (routers/secrets.py) must take effect on the very next poll cycle, not
+        # only after a container restart.
+        api_key = os.environ.get("CANOPY_RACHIO_API_KEY")
+        if not api_key:
             raise RuntimeError("rachio adapter requires CANOPY_RACHIO_API_KEY to be set")
         device_id = room.adapter_config.get("device_id")
         zone_id = room.adapter_config.get("zone_id")
@@ -72,7 +77,7 @@ class RachioAdapter(SensorAdapter):
             raise RuntimeError(f"room '{room.id}' needs both adapter_config.device_id and adapter_config.zone_id")
 
         session = self._get_session()
-        headers = {"Authorization": f"Bearer {self._api_key}"}
+        headers = {"Authorization": f"Bearer {api_key}"}
         async with session.get(f"{API_BASE}/device/{device_id}/current_schedule", headers=headers) as resp:
             if resp.status == 204:
                 body: dict = {}

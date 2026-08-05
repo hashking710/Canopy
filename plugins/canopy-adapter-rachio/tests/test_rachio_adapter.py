@@ -97,3 +97,35 @@ async def test_read_zone_idle_returns_zero(monkeypatch):
         assert values == {"zone_active": 0.0}
     finally:
         await runner.cleanup()
+
+
+async def test_credential_change_takes_effect_on_the_next_read_without_recreating_the_adapter(monkeypatch):
+    """The whole point of reading os.environ inside read() instead of caching it in
+    __init__: a credential set through the dashboard (routers/secrets.py) must take
+    effect on the very next poll cycle on the *same*, already-constructed adapter
+    instance (adapters/registry.py caches one instance per adapter_type)."""
+    received_keys = []
+
+    async def handler(request):
+        received_keys.append(request.headers.get("Authorization"))
+        return web.Response(status=204)
+
+    app = web.Application()
+    app.router.add_get("/device/dev-1/current_schedule", handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 18403)
+    await site.start()
+    try:
+        monkeypatch.setattr(canopy_adapter_rachio, "API_BASE", "http://127.0.0.1:18403")
+        adapter = RachioAdapter()  # one instance, reused across both reads below
+
+        monkeypatch.setenv("CANOPY_RACHIO_API_KEY", "old-key")
+        await adapter.read(make_room(device_id="dev-1", zone_id="zone-1"))
+
+        monkeypatch.setenv("CANOPY_RACHIO_API_KEY", "new-key")  # simulates PUT /api/secrets
+        await adapter.read(make_room(device_id="dev-1", zone_id="zone-1"))
+
+        assert received_keys == ["Bearer old-key", "Bearer new-key"]
+    finally:
+        await runner.cleanup()

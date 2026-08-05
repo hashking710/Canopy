@@ -104,6 +104,40 @@ async def test_read_from_a_real_server(monkeypatch):
         await runner.cleanup()
 
 
+async def test_credential_change_takes_effect_on_the_next_read_without_recreating_the_adapter(monkeypatch):
+    """The whole point of reading os.environ inside read() instead of caching it in
+    __init__: a credential set through the dashboard (routers/secrets.py) must take
+    effect on the very next poll cycle on the *same*, already-constructed adapter
+    instance (adapters/registry.py caches one instance per adapter_type for the
+    process's lifetime) — not only after a restart."""
+    received_keys = []
+
+    async def handler(request):
+        received_keys.append(request.headers.get("Govee-API-Key"))
+        body = await request.json()
+        return web.json_response({"requestId": body["requestId"], "code": 200, "msg": "success", "payload": {"capabilities": []}})
+
+    app = web.Application()
+    app.router.add_post("/router/api/v1/device/state", handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 18302)
+    await site.start()
+    try:
+        monkeypatch.setattr(canopy_adapter_govee, "API_BASE", "http://127.0.0.1:18302/router/api/v1")
+        adapter = GoveeAdapter()  # one instance, reused across both reads below
+
+        monkeypatch.setenv("CANOPY_GOVEE_API_KEY", "old-key")
+        await adapter.read(make_room(sku="H5179", device="AA:BB"))
+
+        monkeypatch.setenv("CANOPY_GOVEE_API_KEY", "new-key")  # simulates PUT /api/secrets
+        await adapter.read(make_room(sku="H5179", device="AA:BB"))
+
+        assert received_keys == ["old-key", "new-key"]
+    finally:
+        await runner.cleanup()
+
+
 async def test_error_code_raises(monkeypatch):
     monkeypatch.setenv("CANOPY_GOVEE_API_KEY", "test-key")
 

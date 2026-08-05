@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type AdapterInfo } from "../api/client";
 import { AdapterConfigEditor } from "./AdapterConfigEditor";
+import { DeviceDiscoveryPanel } from "./DeviceDiscoveryPanel";
 import { EnvVarNotice } from "./EnvVarNotice";
 import { useSettings } from "../hooks/useSettings";
 import { useSubmitState } from "../hooks/useSubmitState";
@@ -176,6 +177,12 @@ export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) 
           </p>
         )}
         {selectedAdapter && <EnvVarNotice envVars={selectedAdapter.required_env_vars} />}
+        {selectedAdapter?.supports_discovery && (
+          <DeviceDiscoveryPanel
+            adapterType={adapterType}
+            onPick={(address) => setAdapterValues({ ...adapterValues, address })}
+          />
+        )}
 
         <div className="field-block">
           {selectedAdapter && Object.keys(selectedAdapter.default_metric_config).length > 0 && (

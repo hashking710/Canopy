@@ -39,7 +39,6 @@ class GoveeAdapter(SensorAdapter):
     }
 
     def __init__(self) -> None:
-        self._api_key = os.environ.get("CANOPY_GOVEE_API_KEY")
         self._session: aiohttp.ClientSession | None = None
 
     async def connect(self, room: Room) -> None:
@@ -49,7 +48,13 @@ class GoveeAdapter(SensorAdapter):
         pass  # shared session; never torn down per-room, same as every other adapter
 
     async def read(self, room: Room) -> dict[str, float]:
-        if not self._api_key:
+        # Read fresh on every call, not cached at __init__: this adapter instance is
+        # long-lived and shared across every room using it (adapters/registry.py),
+        # so a credential set through the dashboard's credentials screen
+        # (routers/secrets.py) must take effect on the very next poll cycle, not
+        # only after a container restart.
+        api_key = os.environ.get("CANOPY_GOVEE_API_KEY")
+        if not api_key:
             raise RuntimeError("govee adapter requires CANOPY_GOVEE_API_KEY to be set")
         sku = room.adapter_config.get("sku")
         device = room.adapter_config.get("device")
@@ -58,7 +63,7 @@ class GoveeAdapter(SensorAdapter):
 
         session = self._get_session()
         body = {"requestId": str(uuid.uuid4()), "payload": {"sku": sku, "device": device}}
-        headers = {"Govee-API-Key": self._api_key, "Content-Type": "application/json"}
+        headers = {"Govee-API-Key": api_key, "Content-Type": "application/json"}
         async with session.post(f"{API_BASE}/device/state", json=body, headers=headers) as resp:
             response_body = await resp.json(content_type=None)
             if resp.status != 200 or response_body.get("code") != 200:

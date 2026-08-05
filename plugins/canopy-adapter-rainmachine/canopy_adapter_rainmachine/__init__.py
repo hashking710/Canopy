@@ -55,9 +55,13 @@ class RainMachineAdapter(SensorAdapter):
     }
 
     def __init__(self) -> None:
-        self._password = os.environ.get("CANOPY_RAINMACHINE_PASSWORD")
         self._session: aiohttp.ClientSession | None = None
         self._tokens: dict[str, str] = {}  # host -> access_token, refreshed on auth failure
+        # host -> the password its cached token was issued for — compared against
+        # the freshly-read env var on every call so a credential changed through
+        # the dashboard (routers/secrets.py) forces a real re-login instead of
+        # silently continuing to use a token issued under the old password.
+        self._token_password: dict[str, str] = {}
 
     async def connect(self, room: Room) -> None:
         pass  # session/token created lazily and shared across rooms, see read()
@@ -66,7 +70,12 @@ class RainMachineAdapter(SensorAdapter):
         pass  # shared session; never torn down per-room, same as every other adapter
 
     async def read(self, room: Room) -> dict[str, float]:
-        if not self._password:
+        # Read fresh on every call, not cached at __init__: this adapter instance is
+        # long-lived and shared across every room using it (adapters/registry.py),
+        # so a credential set through the dashboard must take effect on the very
+        # next poll cycle, not only after a container restart.
+        password = os.environ.get("CANOPY_RAINMACHINE_PASSWORD")
+        if not password:
             raise RuntimeError("rainmachine adapter requires CANOPY_RAINMACHINE_PASSWORD to be set")
         host = room.adapter_config.get("host")
         zone_id = room.adapter_config.get("zone_id")
@@ -74,15 +83,16 @@ class RainMachineAdapter(SensorAdapter):
             raise RuntimeError(f"room '{room.id}' needs both adapter_config.host and adapter_config.zone_id")
 
         session = self._get_session()
-        if host not in self._tokens:
-            self._tokens[host] = await self._login(session, host)
+        if host not in self._tokens or self._token_password.get(host) != password:
+            self._tokens[host] = await self._login(session, host, password)
+            self._token_password[host] = password
 
         zones = await self._get_zones(session, host, self._tokens[host])
         return {"zone_active": 1.0 if is_zone_active(zones, zone_id) else 0.0}
 
-    async def _login(self, session: aiohttp.ClientSession, host: str) -> str:
+    async def _login(self, session: aiohttp.ClientSession, host: str, password: str) -> str:
         async with session.post(
-            f"{host}/api/4/auth/login", json={"pwd": self._password, "remember": True}, ssl=False
+            f"{host}/api/4/auth/login", json={"pwd": password, "remember": True}, ssl=False
         ) as resp:
             body = await resp.json(content_type=None)
             if resp.status != 200 or "access_token" not in body:

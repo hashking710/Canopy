@@ -5,15 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
 import { TIMEZONE_KEY } from "../hooks/useSettings";
 
-const { getBackupStatus, runBackupNow } = vi.hoisted(() => ({
+const { getBackupStatus, runBackupNow, getSecrets, setSecret, clearSecret } = vi.hoisted(() => ({
   getBackupStatus: vi.fn(),
   runBackupNow: vi.fn(),
+  getSecrets: vi.fn(),
+  setSecret: vi.fn(),
+  clearSecret: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
   api: {
     getBackupStatus: (...args: unknown[]) => getBackupStatus(...args),
     runBackupNow: (...args: unknown[]) => runBackupNow(...args),
+    getSecrets: (...args: unknown[]) => getSecrets(...args),
+    setSecret: (...args: unknown[]) => setSecret(...args),
+    clearSecret: (...args: unknown[]) => clearSecret(...args),
   },
 }));
 
@@ -28,6 +34,7 @@ function renderPage() {
 describe("Settings", () => {
   beforeEach(() => {
     getBackupStatus.mockResolvedValue({ count: 0, latest: null, backups: [] });
+    getSecrets.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -93,5 +100,66 @@ describe("Settings", () => {
 
     await waitFor(() => expect(runBackupNow).toHaveBeenCalled());
     expect(await screen.findByText(/1 kept/)).toBeInTheDocument();
+  });
+
+  describe("credentials", () => {
+    const goveeSecret = {
+      key: "CANOPY_GOVEE_API_KEY",
+      description: "API key requested in the Govee Home app",
+      is_set: false,
+      set_via_dashboard: false,
+    };
+
+    it("shows nothing when no installed plugin needs a credential", async () => {
+      renderPage();
+      await screen.findByText(/No backups yet/); // wait for the page to settle
+      expect(screen.queryByText("Sensor & sync credentials")).not.toBeInTheDocument();
+    });
+
+    it("shows an unset credential as needing setup", async () => {
+      getSecrets.mockResolvedValue([goveeSecret]);
+      renderPage();
+
+      expect(await screen.findByText("CANOPY_GOVEE_API_KEY")).toBeInTheDocument();
+      expect(screen.getByText("needs setup")).toBeInTheDocument();
+      expect(screen.queryByText("clear")).not.toBeInTheDocument(); // not set via dashboard yet
+    });
+
+    it("shows a configured credential and offers to clear it", async () => {
+      getSecrets.mockResolvedValue([{ ...goveeSecret, is_set: true, set_via_dashboard: true }]);
+      renderPage();
+
+      expect(await screen.findByText("configured")).toBeInTheDocument();
+      expect(screen.getByText("clear")).toBeInTheDocument();
+    });
+
+    it("saves a new value and refreshes", async () => {
+      const user = userEvent.setup();
+      getSecrets.mockResolvedValueOnce([goveeSecret]);
+      setSecret.mockResolvedValue({ key: goveeSecret.key, is_set: true });
+      renderPage();
+      await screen.findByText("CANOPY_GOVEE_API_KEY");
+
+      getSecrets.mockResolvedValue([{ ...goveeSecret, is_set: true, set_via_dashboard: true }]);
+      await user.type(screen.getByPlaceholderText("not set"), "my-real-key");
+      await user.click(screen.getByText("save"));
+
+      await waitFor(() => expect(setSecret).toHaveBeenCalledWith("CANOPY_GOVEE_API_KEY", "my-real-key"));
+      expect(await screen.findByText(/Saved — takes effect/)).toBeInTheDocument();
+    });
+
+    it("clears a configured credential", async () => {
+      const user = userEvent.setup();
+      getSecrets.mockResolvedValueOnce([{ ...goveeSecret, is_set: true, set_via_dashboard: true }]);
+      clearSecret.mockResolvedValue({ key: goveeSecret.key, is_set: false });
+      renderPage();
+      await screen.findByText("clear");
+
+      getSecrets.mockResolvedValue([goveeSecret]);
+      await user.click(screen.getByText("clear"));
+
+      await waitFor(() => expect(clearSecret).toHaveBeenCalledWith("CANOPY_GOVEE_API_KEY"));
+      expect(await screen.findByText("needs setup")).toBeInTheDocument();
+    });
   });
 });

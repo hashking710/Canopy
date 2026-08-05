@@ -42,6 +42,14 @@ export interface AdapterInfo {
   config_schema: Record<string, string>;
   required_env_vars: Record<string, string>;
   default_metric_config: Record<string, unknown>;
+  supports_discovery: boolean;
+}
+
+export interface DiscoveredDevice {
+  address: string;
+  name: string | null;
+  rssi?: number;
+  [key: string]: unknown;
 }
 
 export interface CreateFacilityBody {
@@ -97,6 +105,13 @@ export interface BackupStatus {
   backups: BackupEntry[];
 }
 
+export interface SecretInfo {
+  key: string;
+  description: string;
+  is_set: boolean;
+  set_via_dashboard: boolean;
+}
+
 export const api = {
   getFacility: () => getJson<Room>("/api/facility"),
   createFacility: (body: CreateFacilityBody) => sendJson<Room>("POST", "/api/facility", body),
@@ -109,9 +124,15 @@ export const api = {
   updateRoom: (id: string, body: UpdateRoomBody) => sendJson<Room>("PUT", `/api/rooms/${id}`, body),
   deleteRoom: (id: string) => sendJson<{ id: string; deleted: boolean }>("DELETE", `/api/rooms/${id}`),
   getAvailableAdapters: () => getJson<AdapterInfo[]>("/api/rooms/adapters/available"),
+  discoverAdapterDevices: (adapterType: string) =>
+    sendJson<DiscoveredDevice[]>("POST", `/api/rooms/adapters/${adapterType}/discover`),
   getLicenseStatus: () => getJson<LicenseStatus>("/api/license/status"),
   getBackupStatus: () => getJson<BackupStatus>("/api/backup/status"),
   runBackupNow: () => sendJson<BackupEntry>("POST", "/api/backup/run"),
+  getSecrets: () => getJson<SecretInfo[]>("/api/secrets"),
+  setSecret: (key: string, value: string) =>
+    sendJson<{ key: string; is_set: boolean }>("PUT", `/api/secrets/${key}`, { value }),
+  clearSecret: (key: string) => sendJson<{ key: string; is_set: boolean }>("DELETE", `/api/secrets/${key}`),
 };
 
 export function connectLiveUpdates(

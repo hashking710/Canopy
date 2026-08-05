@@ -95,9 +95,33 @@ def list_available_adapters() -> list[dict]:
             "config_schema": adapter_cls.config_schema,
             "required_env_vars": adapter_cls.required_env_vars,
             "default_metric_config": adapter_cls.default_metric_config,
+            "supports_discovery": adapter_cls.supports_discovery,
         }
         for adapter_type, adapter_cls in sorted(available_adapter_types().items())
     ]
+
+
+@router.post("/adapters/{adapter_type}/discover")
+async def discover_adapter_devices(adapter_type: str) -> list[dict]:
+    """Scans for nearby devices this adapter type could talk to (BLE today — see
+    SensorAdapter.supports_discovery's docstring for why most cloud/local-network
+    adapters can't offer this under Docker's default bridge networking), so the
+    room-creation UI can pre-fill adapter_config without an external scanner tool.
+    A real, possibly slow (BLE scans run 10-15s) I/O operation — not idempotent in
+    the REST sense, hence POST rather than GET."""
+    installed = available_adapter_types()
+    adapter_cls = installed.get(adapter_type)
+    if adapter_cls is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"unknown adapter_type '{adapter_type}' — installed: {sorted(installed)}",
+        )
+    if not adapter_cls.supports_discovery:
+        raise HTTPException(status_code=400, detail=f"'{adapter_type}' does not support device discovery")
+    try:
+        return await adapter_cls.discover()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"discovery failed: {exc}") from exc
 
 
 @router.get("", response_model=list[RoomOut])
