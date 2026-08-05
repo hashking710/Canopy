@@ -2,6 +2,7 @@
 name = "canopy-adapter-rachio"
 version = "0.1.0"
 description = "Rachio smart irrigation controller adapter for Canopy — correlate fertigation/irrigation runs with climate and soil readings"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

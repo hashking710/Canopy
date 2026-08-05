@@ -2,6 +2,7 @@
 name = "canopy-adapter-switchbot"
 version = "0.1.0"
 description = "SwitchBot cloud API sensor adapter for Canopy (Meter/MeterPlus temp+humidity sensors, plugs)"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

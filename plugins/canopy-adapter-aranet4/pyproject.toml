@@ -2,6 +2,7 @@
 name = "canopy-adapter-aranet4"
 version = "0.1.0"
 description = "Aranet4 BLE NDIR CO2 sensor adapter for Canopy — the accurate CO2 sensor the grow community actually uses"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

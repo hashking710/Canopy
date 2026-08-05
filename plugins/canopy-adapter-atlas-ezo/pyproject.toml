@@ -2,6 +2,7 @@
 name = "canopy-adapter-atlas-ezo"
 version = "0.1.0"
 description = "Atlas Scientific EZO circuit adapter for Canopy (pH, EC, dissolved oxygen, ORP, RTD temperature — fertigation/reservoir water quality)"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

@@ -2,6 +2,7 @@
 name = "canopy-adapter-mqtt"
 version = "0.1.0"
 description = "Generic MQTT-subscribe sensor adapter for Canopy — works with ESPHome, Tasmota, Zigbee2MQTT, and anything else that publishes numeric values to MQTT"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

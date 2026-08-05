@@ -2,6 +2,7 @@
 name = "canopy-compliancesync-metrc"
 version = "0.1.0"
 description = "METRC compliance-sync plugin for Canopy — reports plant/harvest/waste/package events to METRC's real v1 API"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

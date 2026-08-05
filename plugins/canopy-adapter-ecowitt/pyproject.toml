@@ -2,6 +2,7 @@
 name = "canopy-adapter-ecowitt"
 version = "0.1.0"
 description = "Ecowitt weather station / soil sensor gateway adapter for Canopy — local LAN API, no cloud account needed"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

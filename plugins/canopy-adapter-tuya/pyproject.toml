@@ -2,6 +2,7 @@
 name = "canopy-adapter-tuya"
 version = "0.1.0"
 description = "Tuya local-protocol sensor adapter for Canopy — the huge cheap-sensor ecosystem behind Smart Life / Tuya Smart branded devices, no cloud round-trip at runtime"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

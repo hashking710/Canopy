@@ -2,6 +2,7 @@
 name = "canopy-adapter-trolmaster"
 version = "0.1.0"
 description = "TrolMaster cloud API sensor adapter plugin for Canopy (blocked on vendor API access — see package docstring)"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

@@ -2,6 +2,7 @@
 name = "canopy-adapter-rainmachine"
 version = "0.1.0"
 description = "RainMachine smart irrigation controller adapter for Canopy — local HTTPS API, correlate irrigation runs with other sensor readings"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

@@ -2,6 +2,7 @@
 name = "canopy-adapter-gpio"
 version = "0.1.0"
 description = "Direct-attached Raspberry Pi sensor adapter for Canopy — I2C (SHT31, ADS1115), 1-Wire (DS18B20), and digital GPIO (float switches / leak sensors)"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

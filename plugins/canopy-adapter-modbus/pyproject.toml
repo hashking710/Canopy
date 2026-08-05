@@ -2,6 +2,7 @@
 name = "canopy-adapter-modbus"
 version = "0.1.0"
 description = "Generic Modbus TCP/RTU sensor adapter plugin for Canopy"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",

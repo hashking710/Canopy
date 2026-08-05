@@ -2,6 +2,7 @@
 name = "canopy-adapter-shelly"
 version = "0.1.0"
 description = "Shelly smart plug/relay power-monitoring adapter for Canopy (Gen1 and Gen2+ local HTTP API — no cloud account needed)"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "canopy-agent",
