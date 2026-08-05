@@ -56,6 +56,7 @@ class ModbusAdapter(SensorAdapter):
         "Generic adapter for any Modbus TCP or RTU device — describe the device's own "
         "register map in adapter_config; this doesn't assume any particular vendor."
     )
+    category: ClassVar[str] = "local"
     config_schema: ClassVar[dict[str, str]] = {
         "transport": '"tcp" or "rtu", default "tcp"',
         "host": "TCP only: device IP/hostname",

@@ -68,6 +68,7 @@ async def test_read_with_unknown_generation_raises():
 def test_plugin_metadata_is_set():
     assert ShellyAdapter.plugin_name == "Shelly (local API)"
     assert "host" in ShellyAdapter.config_schema
+    assert set(ShellyAdapter.default_metric_config) == {"power_w"}
 
 
 # ---- real end-to-end read against a real local HTTP server, matching Shelly's real

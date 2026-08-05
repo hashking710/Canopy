@@ -55,6 +55,7 @@ class TuyaAdapter(SensorAdapter):
         "no cloud round-trip at runtime, though getting a device's local_key needs "
         "a one-time Tuya IoT Cloud developer setup step."
     )
+    category: ClassVar[str] = "local"
     config_schema: ClassVar[dict[str, str]] = {
         "device_id": "Tuya device id",
         "local_key": "Tuya local key (from the Tuya IoT Cloud developer portal)",

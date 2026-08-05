@@ -75,6 +75,7 @@ def test_plugin_metadata_is_set():
     assert "device_id" in SwitchBotAdapter.config_schema
     assert "CANOPY_SWITCHBOT_TOKEN" in SwitchBotAdapter.required_env_vars
     assert "CANOPY_SWITCHBOT_SECRET" in SwitchBotAdapter.required_env_vars
+    assert set(SwitchBotAdapter.default_metric_config) == {"temp_f", "rh_pct"}
 
 
 # ---- real end-to-end read against a real local HTTP server, verifying both the

@@ -212,6 +212,7 @@ class GpioAdapter(SensorAdapter):
         "docstring), HX711 (load cell — harvest/yield weight), and digital GPIO "
         "(float switches / leak sensors)."
     )
+    category: ClassVar[str] = "hardware"
     config_schema: ClassVar[dict[str, str]] = {
         "sensors": "list of {kind, metric(s), ...kind-specific fields} — see this "
         "adapter's own docstring for the shape of each kind",

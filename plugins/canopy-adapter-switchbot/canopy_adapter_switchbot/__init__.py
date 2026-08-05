@@ -43,10 +43,15 @@ class SwitchBotAdapter(SensorAdapter):
         "SwitchBot Meter/MeterPlus/Hub2 temperature+humidity sensors, via "
         "SwitchBot's official cloud API."
     )
+    category: ClassVar[str] = "cloud"
     config_schema: ClassVar[dict[str, str]] = {"device_id": "SwitchBot device ID, from the app or GET /v1.1/devices"}
     required_env_vars: ClassVar[dict[str, str]] = {
         "CANOPY_SWITCHBOT_TOKEN": "Open token, from the SwitchBot app (Profile → Preferences → App Version → tap 10x → Open Token)",
         "CANOPY_SWITCHBOT_SECRET": "Secret key, shown alongside the open token",
+    }
+    default_metric_config: ClassVar[dict[str, dict]] = {
+        "temp_f": {"label": "temp", "unit": "°F", "decimals": 1},
+        "rh_pct": {"label": "RH", "unit": "%", "decimals": 1},
     }
 
     def __init__(self) -> None:

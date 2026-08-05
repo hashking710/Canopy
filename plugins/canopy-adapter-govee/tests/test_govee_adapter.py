@@ -56,6 +56,7 @@ def test_plugin_metadata_is_set():
     assert GoveeAdapter.plugin_name == "Govee (Cloud API)"
     assert "sku" in GoveeAdapter.config_schema
     assert "CANOPY_GOVEE_API_KEY" in GoveeAdapter.required_env_vars
+    assert set(GoveeAdapter.default_metric_config) == {"temp_f", "rh_pct"}
 
 
 # ---- real end-to-end read against a real local HTTP server --------------------------

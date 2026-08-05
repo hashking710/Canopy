@@ -25,12 +25,17 @@ class GoveeAdapter(SensorAdapter):
 
     plugin_name = "Govee (Cloud API)"
     plugin_description = "Govee H5xxx-series temperature+humidity sensors, via Govee's official cloud API."
+    category: ClassVar[str] = "cloud"
     config_schema: ClassVar[dict[str, str]] = {
         "sku": "Device model/SKU (e.g. 'H5179'), from the Govee Home app or GET /user/devices",
         "device": "Device MAC/id, from the Govee Home app or GET /user/devices",
     }
     required_env_vars: ClassVar[dict[str, str]] = {
         "CANOPY_GOVEE_API_KEY": "API key requested in the Govee Home app (Settings → Apply for API Key)",
+    }
+    default_metric_config: ClassVar[dict[str, dict]] = {
+        "temp_f": {"label": "temp", "unit": "°F", "decimals": 1},
+        "rh_pct": {"label": "RH", "unit": "%", "decimals": 1},
     }
 
     def __init__(self) -> None:

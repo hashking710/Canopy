@@ -16,6 +16,31 @@ const DEFAULT_METRIC_ROWS: MetricConfigRow[] = metricConfigToRows({
   rh_pct: { label: "RH", unit: "%", decimals: 1, min: 40, max: 70, step: 1 },
 });
 
+// Groups the adapter picker by connection type (driven by each adapter's own
+// `category`, see adapters/base.py) instead of one flat list of ~16 similarly-terse
+// names — someone with a Govee sensor can go straight to "Cloud account" instead of
+// scanning the whole list. Order is deliberate: real-hardware categories first,
+// mock/testing last since it's not what most people are looking for.
+const CATEGORY_LABELS: Record<string, string> = {
+  cloud: "Cloud account",
+  local: "Local network",
+  bluetooth: "Bluetooth",
+  hardware: "Direct-attached (Pi GPIO/I2C)",
+  testing: "Testing",
+  other: "Other",
+};
+const CATEGORY_ORDER = ["cloud", "local", "bluetooth", "hardware", "testing", "other"];
+
+function groupAdaptersByCategory(adapters: AdapterInfo[]): [string, AdapterInfo[]][] {
+  const groups = new Map<string, AdapterInfo[]>();
+  for (const adapter of adapters) {
+    const category = adapter.category || "other";
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category)!.push(adapter);
+  }
+  return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!]);
+}
+
 export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) {
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
   const [id, setId] = useState("");
@@ -38,6 +63,20 @@ export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) 
 
   useEffect(() => {
     setAdapterValues(adapterConfigToValues({}, selectedAdapter?.config_schema ?? {}));
+  }, [adapterType, selectedAdapter]);
+
+  // Adapters with a fixed, predictable set of readings (Govee always reports
+  // temp_f/rh_pct, etc.) ship a default_metric_config so picking one pre-fills the
+  // metric editor instead of making the user retype exact key names from memory —
+  // still just a starting point, editable/removable like any other row. Adapters
+  // without one (Modbus, MQTT, BLE, mock, ...) are inherently user-defined, so
+  // switching to one of those deliberately leaves whatever rows are already there
+  // rather than clearing them.
+  useEffect(() => {
+    const defaults = selectedAdapter?.default_metric_config;
+    if (defaults && Object.keys(defaults).length > 0) {
+      setMetricRows(metricConfigToRows(defaults));
+    }
   }, [adapterType, selectedAdapter]);
 
   const submit = () =>
@@ -118,10 +157,14 @@ export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) 
             sensor adapter
             <select value={adapterType} onChange={(e) => setAdapterType(e.target.value)}>
               {adapters.length === 0 && <option value="mock">mock</option>}
-              {adapters.map((a) => (
-                <option key={a.adapter_type} value={a.adapter_type}>
-                  {a.plugin_name}
-                </option>
+              {groupAdaptersByCategory(adapters).map(([category, group]) => (
+                <optgroup key={category} label={CATEGORY_LABELS[category] ?? category}>
+                  {group.map((a) => (
+                    <option key={a.adapter_type} value={a.adapter_type}>
+                      {a.plugin_name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
@@ -135,6 +178,11 @@ export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) 
         {selectedAdapter && <EnvVarNotice envVars={selectedAdapter.required_env_vars} />}
 
         <div className="field-block">
+          {selectedAdapter && Object.keys(selectedAdapter.default_metric_config).length > 0 && (
+            <p className="field-hint" style={{ marginBottom: 6 }}>
+              Pre-filled for {selectedAdapter.plugin_name} — edit or remove rows as needed.
+            </p>
+          )}
           <MetricConfigEditor
             rows={metricRows}
             onChange={setMetricRows}

@@ -91,8 +91,10 @@ def list_available_adapters() -> list[dict]:
             "adapter_type": adapter_type,
             "plugin_name": adapter_cls.plugin_name,
             "plugin_description": adapter_cls.plugin_description,
+            "category": adapter_cls.category,
             "config_schema": adapter_cls.config_schema,
             "required_env_vars": adapter_cls.required_env_vars,
+            "default_metric_config": adapter_cls.default_metric_config,
         }
         for adapter_type, adapter_cls in sorted(available_adapter_types().items())
     ]

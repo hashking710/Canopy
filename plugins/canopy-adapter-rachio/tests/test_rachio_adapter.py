@@ -48,6 +48,7 @@ def test_plugin_metadata_is_set():
     assert RachioAdapter.plugin_name == "Rachio (Cloud API)"
     assert "zone_id" in RachioAdapter.config_schema
     assert "CANOPY_RACHIO_API_KEY" in RachioAdapter.required_env_vars
+    assert set(RachioAdapter.default_metric_config) == {"zone_active"}
 
 
 # ---- real end-to-end read against a real local HTTP server --------------------------

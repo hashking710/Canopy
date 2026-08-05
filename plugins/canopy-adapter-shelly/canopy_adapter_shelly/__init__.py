@@ -39,12 +39,20 @@ class ShellyAdapter(SensorAdapter):
         "Shelly smart plug/relay power monitoring over its local HTTP API — Gen1 and "
         "Gen2/3, no cloud account needed."
     )
+    category: ClassVar[str] = "local"
     config_schema: ClassVar[dict[str, str]] = {
         "host": "Device IP/hostname on your LAN",
         "generation": "1 or 2 (Gen2 covers Gen3 too — same RPC API), default 2",
         "switch_id": "Gen2/3 only: which switch/output index, default 0",
         "username": "Optional — only if the device's local HTTP auth is enabled",
         "password": "Optional — only if the device's local HTTP auth is enabled",
+    }
+    # Just power_w, not voltage/current/energy/temp — those are Gen2/3-only and
+    # conditional even then (see _parse_gen2_status), so a fixed default risks rows
+    # that never populate on Gen1 hardware; power_w is the one metric every
+    # generation actually reports. Add rows for the rest if you're on Gen2/3.
+    default_metric_config: ClassVar[dict[str, dict]] = {
+        "power_w": {"label": "power", "unit": "W", "decimals": 1},
     }
 
     def __init__(self) -> None:

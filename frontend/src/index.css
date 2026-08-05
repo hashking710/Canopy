@@ -443,6 +443,13 @@ button {
   margin-bottom: 12px;
 }
 
+.sensor-health-detail {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--danger);
+  line-height: 1.4;
+}
+
 .live-connection-notice {
   background: var(--warn-soft);
   color: var(--warn);

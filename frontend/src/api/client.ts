@@ -38,8 +38,10 @@ export interface AdapterInfo {
   adapter_type: string;
   plugin_name: string;
   plugin_description: string;
+  category: string;
   config_schema: Record<string, string>;
   required_env_vars: Record<string, string>;
+  default_metric_config: Record<string, unknown>;
 }
 
 export interface CreateFacilityBody {

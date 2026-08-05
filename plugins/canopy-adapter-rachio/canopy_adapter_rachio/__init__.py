@@ -41,12 +41,16 @@ class RachioAdapter(SensorAdapter):
 
     plugin_name = "Rachio (Cloud API)"
     plugin_description = "Reports whether a Rachio zone is currently watering — correlate irrigation runs with other sensor readings."
+    category: ClassVar[str] = "cloud"
     config_schema: ClassVar[dict[str, str]] = {
         "device_id": "Rachio controller device id",
         "zone_id": "Rachio zone id to watch",
     }
     required_env_vars: ClassVar[dict[str, str]] = {
         "CANOPY_RACHIO_API_KEY": "API key from the Rachio app (Account Settings → API Key)",
+    }
+    default_metric_config: ClassVar[dict[str, dict]] = {
+        "zone_active": {"label": "zone active", "unit": "", "decimals": 0},
     }
 
     def __init__(self) -> None:

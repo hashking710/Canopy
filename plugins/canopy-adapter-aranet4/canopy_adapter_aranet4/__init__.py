@@ -45,7 +45,14 @@ class Aranet4Adapter(SensorAdapter):
 
     plugin_name = "Aranet4 (BLE CO2)"
     plugin_description = "Aranet4 NDIR CO2 sensor — accurate real CO2, plus temp/RH/pressure, over BLE."
+    category: ClassVar[str] = "bluetooth"
     config_schema: ClassVar[dict[str, str]] = {"address": "Aranet4's BLE MAC address"}
+    default_metric_config: ClassVar[dict[str, dict]] = {
+        "co2_ppm": {"label": "CO2", "unit": "ppm", "decimals": 0},
+        "temp_f": {"label": "temp", "unit": "°F", "decimals": 1},
+        "rh_pct": {"label": "RH", "unit": "%", "decimals": 1},
+        "pressure_hpa": {"label": "pressure", "unit": "hPa", "decimals": 1},
+    }
 
     async def connect(self, room: Room) -> None:
         pass  # connects fresh on every read(), see read()

@@ -51,6 +51,7 @@ class MqttSubscribeAdapter(SensorAdapter):
         "any device publishing numeric values to MQTT (ESPHome, Tasmota, "
         "Zigbee2MQTT, Home Assistant, etc.), no vendor-specific integration needed."
     )
+    category: ClassVar[str] = "local"
     config_schema: ClassVar[dict[str, str]] = {
         "host": "Broker hostname/IP (defaults to CANOPY_MQTT_HOST if unset)",
         "port": "Broker port, default 1883",

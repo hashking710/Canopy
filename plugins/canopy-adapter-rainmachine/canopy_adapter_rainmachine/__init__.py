@@ -42,12 +42,16 @@ class RainMachineAdapter(SensorAdapter):
 
     plugin_name = "RainMachine (local API)"
     plugin_description = "Reports whether a RainMachine zone is currently watering — local HTTPS API, no cloud account."
+    category: ClassVar[str] = "local"
     config_schema: ClassVar[dict[str, str]] = {
         "host": "Device base URL, e.g. https://192.168.1.60:8080",
         "zone_id": "RainMachine zone UID to watch",
     }
     required_env_vars: ClassVar[dict[str, str]] = {
         "CANOPY_RAINMACHINE_PASSWORD": "The device's local access password (set in the RainMachine app)",
+    }
+    default_metric_config: ClassVar[dict[str, dict]] = {
+        "zone_active": {"label": "zone active", "unit": "", "decimals": 0},
     }
 
     def __init__(self) -> None:

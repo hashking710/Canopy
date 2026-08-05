@@ -43,6 +43,7 @@ class EcowittAdapter(SensorAdapter):
         "Ecowitt weather station / soil sensor gateway (GW1000/GW2000/GW3000 and "
         "similar) over its local LAN API — no cloud account needed."
     )
+    category: ClassVar[str] = "local"
     config_schema: ClassVar[dict[str, str]] = {
         "host": "Gateway IP/hostname on your LAN",
         "fields": "{metric_key: ecowitt_id_code} — see Ecowitt's LAN Console API docs for id codes",

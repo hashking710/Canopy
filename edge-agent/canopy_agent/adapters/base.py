@@ -17,6 +17,13 @@ class SensorAdapter(ABC):
     #: Shown in plugin listings / error messages. Override in subclasses.
     plugin_name: ClassVar[str] = "unnamed adapter"
     plugin_description: ClassVar[str] = ""
+    #: Groups the room-creation UI's adapter picker so someone with, say, a Govee
+    #: sensor isn't scanning ~16 flat, similarly-terse options to find it — one of
+    #: "cloud" (needs a vendor account/API key), "local" (talks to a device on your
+    #: LAN, no cloud account), "bluetooth", "hardware" (direct-attached Pi GPIO/I2C),
+    #: or "testing" (the built-in mock). Purely descriptive/cosmetic, same spirit as
+    #: config_schema; an unrecognized value just falls back to its own group.
+    category: ClassVar[str] = "other"
     #: Optional hint for what `Room.adapter_config` needs, e.g. {"dev_id": "controller ID from the vendor app"}.
     #: Purely descriptive — not validated — but lets a future config UI explain itself.
     config_schema: ClassVar[dict[str, str]] = {}
@@ -26,6 +33,15 @@ class SensorAdapter(ABC):
     #: surfaced in the room-creation UI so picking this adapter doesn't silently need a second,
     #: invisible setup step outside the app.
     required_env_vars: ClassVar[dict[str, str]] = {}
+    #: Optional starting point for Room.metric_config, in the same shape
+    #: ({metric_key: {"label": ..., "unit": ..., "decimals": ...}}) — for an adapter with
+    #: a fixed, predictable set of readings (e.g. Govee always reports temp_f/rh_pct),
+    #: lets the room-creation UI pre-fill the metric editor instead of making every user
+    #: retype the exact keys the adapter's own read() already returns. Left empty for
+    #: adapters whose metrics are inherently user-defined (Modbus registers, MQTT
+    #: topics, BLE byte layouts, GPIO's per-kind sensors) — nothing to sensibly default
+    #: there. Purely a UI convenience; the user can still edit/remove rows afterward.
+    default_metric_config: ClassVar[dict[str, dict]] = {}
 
     @abstractmethod
     async def connect(self, room: Room) -> None: ...

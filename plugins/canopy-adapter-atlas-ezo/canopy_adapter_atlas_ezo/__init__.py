@@ -74,6 +74,7 @@ class AtlasEzoAdapter(SensorAdapter):
         "Atlas Scientific EZO circuits — pH, EC, dissolved oxygen, ORP, and RTD "
         "temperature probes, for fertigation/reservoir water-quality monitoring."
     )
+    category: ClassVar[str] = "hardware"
     config_schema: ClassVar[dict[str, str]] = {
         "sensors": "list of {metric, kind ('ph'|'ec'|'do'|'orp'|'rtd'), i2c_bus, "
         "i2c_address, field_index (EC only, default 0)}",

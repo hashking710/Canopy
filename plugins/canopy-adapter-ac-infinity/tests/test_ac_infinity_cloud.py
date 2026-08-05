@@ -35,3 +35,4 @@ def test_plugin_metadata_is_set():
     assert "dev_id" in ACInfinityCloudAdapter.config_schema
     assert "CANOPY_AC_INFINITY_EMAIL" in ACInfinityCloudAdapter.required_env_vars
     assert "CANOPY_AC_INFINITY_PASSWORD" in ACInfinityCloudAdapter.required_env_vars
+    assert set(ACInfinityCloudAdapter.default_metric_config) == {"temp_f", "rh_pct", "vpd_kpa"}

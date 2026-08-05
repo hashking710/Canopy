@@ -81,6 +81,7 @@ class BleAdapter(SensorAdapter):
         "with any sensor exposing a plain numeric characteristic, including the "
         "Bluetooth SIG's standard Environmental Sensing Service."
     )
+    category: ClassVar[str] = "bluetooth"
     config_schema: ClassVar[dict[str, str]] = {
         "address": "BLE MAC address (or UUID on macOS) of the device",
         "characteristics": "list of {metric, uuid, format, scale, offset, c_to_f}",
@@ -163,6 +164,7 @@ class BleAdvertisementAdapter(SensorAdapter):
         "sensors that broadcast instead of accepting connections (e.g. re-flashed "
         "Xiaomi Mijia temp/RH sensors, BTHome-style devices)."
     )
+    category: ClassVar[str] = "bluetooth"
     config_schema: ClassVar[dict[str, str]] = {
         "address": "BLE MAC address of the device",
         "service_data_uuid": "Which advertisement service-data UUID to read from",

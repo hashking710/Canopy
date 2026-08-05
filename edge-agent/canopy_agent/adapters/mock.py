@@ -15,6 +15,7 @@ class MockAdapter(SensorAdapter):
 
     plugin_name = "Mock (built-in)"
     plugin_description = "Simulated readings for local development — no hardware required."
+    category = "testing"
 
     def __init__(self) -> None:
         self._state: dict[tuple[str, str], float] = {}

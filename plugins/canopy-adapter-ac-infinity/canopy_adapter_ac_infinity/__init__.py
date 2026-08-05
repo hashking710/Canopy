@@ -45,10 +45,16 @@ class ACInfinityCloudAdapter(SensorAdapter):
         "Bluetooth-only controllers — see the community BLE thread linked in "
         "docs/architecture.md for that gap."
     )
+    category = "cloud"
     config_schema = {"dev_id": "Controller ID as shown in the AC Infinity app"}
     required_env_vars = {
         "CANOPY_AC_INFINITY_EMAIL": "Your AC Infinity account email",
         "CANOPY_AC_INFINITY_PASSWORD": "Your AC Infinity account password",
+    }
+    default_metric_config = {
+        "temp_f": {"label": "temp", "unit": "°F", "decimals": 1},
+        "rh_pct": {"label": "RH", "unit": "%", "decimals": 1},
+        "vpd_kpa": {"label": "VPD", "unit": "kPa", "decimals": 2},
     }
 
     def __init__(self) -> None:

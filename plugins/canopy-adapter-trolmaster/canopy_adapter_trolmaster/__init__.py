@@ -43,6 +43,7 @@ class TrolMasterCloudAdapter(SensorAdapter):
         "paid-gated with no public endpoint documentation found. See this package's "
         "module docstring and docs/architecture.md before using."
     )
+    category: ClassVar[str] = "cloud"
     config_schema: ClassVar[dict[str, str]] = {
         "device_id": "TrolMaster device ID as shown in the TrolMaster app (once the real API is built)",
     }

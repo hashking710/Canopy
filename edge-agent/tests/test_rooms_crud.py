@@ -183,3 +183,5 @@ def test_available_adapters_include_plugin_metadata(client):
     assert "config_schema" in mock_entry
     assert "required_env_vars" in mock_entry
     assert mock_entry["required_env_vars"] == {}
+    assert "default_metric_config" in mock_entry
+    assert mock_entry["category"] == "testing"

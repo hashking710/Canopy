@@ -48,3 +48,4 @@ async def test_read_without_address_raises():
 def test_plugin_metadata_is_set():
     assert Aranet4Adapter.plugin_name == "Aranet4 (BLE CO2)"
     assert "address" in Aranet4Adapter.config_schema
+    assert set(Aranet4Adapter.default_metric_config) == {"co2_ppm", "temp_f", "rh_pct", "pressure_hpa"}

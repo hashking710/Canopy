@@ -288,8 +288,42 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
   `tests/test_rooms_extra_adapters.py` (the CRUD endpoints, including that deleting
   a room cleans up its extra adapters — SQLite doesn't enforce foreign keys here,
   same reasoning as every other related-row cleanup in `routers/rooms.py`).
-
-## Phase 3 — chaining + master control panel (core pipeline built)
+- **Ease-of-use pass on room setup (built)** — a real audit of the add-room flow
+  found several genuine friction points for a non-technical user (credentials were
+  the only severe gap; several others turned out already reasonably handled, e.g.
+  `EnvVarNotice` already surfaced required env vars before this pass). What changed:
+  - `SensorAdapter.default_metric_config` — a new optional class attribute, set on
+    every adapter with a fixed, predictable reading shape (Govee, SwitchBot,
+    AC Infinity, Aranet4, Rachio, RainMachine, Shelly's `power_w`). The room-creation
+    UI now pre-fills the metric editor from it the moment an adapter is picked,
+    instead of making the user retype exact key names (`temp_f`, `rh_pct`, ...) from
+    the adapter's own docstring. Left empty (no change in behavior) for adapters
+    that are inherently user-defined — Modbus registers, MQTT topics, BLE byte
+    layouts, GPIO's per-kind sensors — since there's nothing to sensibly default
+    there. Exposed via `GET /api/rooms/adapters/available`.
+  - `SensorAdapter.category` — a new optional class attribute (`cloud` / `local` /
+    `bluetooth` / `hardware` / `testing`) grouping the adapter picker into
+    `<optgroup>`s instead of one flat list of 17 similarly-terse names — someone
+    with a Govee sensor goes straight to "Cloud account" instead of scanning
+    everything alphabetically.
+  - `EntityCard`'s "sensor offline" indicator now shows the actual `last_poll_error`
+    text inline (e.g. "govee adapter requires CANOPY_GOVEE_API_KEY to be set"), not
+    only as a `title` hover tooltip — invisible on touch devices, and this is
+    exactly the message a non-technical user needs to actually see to fix it.
+  - **Deliberately not built in this pass** — flagged as real gaps, not solved: (1)
+    cloud-adapter credentials are still env-var-only, read once at process start
+    (`adapters/registry.py` caches one instance per `adapter_type` for the process
+    lifetime) — changing one still needs editing `docker-compose.yml`/`.env` and a
+    container restart; a real fix means either a DB-backed, hot-reloadable secrets
+    store or moving credential reads from `__init__` into `read()` across every
+    cloud adapter, both real architecture/security decisions bigger than this pass.
+    (2) No device discovery (mDNS/SSDP/BLE scan) — every local-network and BLE
+    adapter still requires the user to already know a host/IP/MAC from some other
+    tool. (3) `room_type` stayed a freetext-with-datalist field rather than a
+    strict dropdown — converting it would break legitimate custom room types
+    (`dry_cure`, `vault`, `press`, ...) that don't feed the plant-count tally;
+    the existing inline warning about the three tally-relevant values
+    (`greenhouse`/`clone_room`/`mother_room`) was judged adequate.
 
 ![Master control panel on a single-site facility — a friendly explainer instead of a raw fetch error](screenshots/10-master-sites.png)
 

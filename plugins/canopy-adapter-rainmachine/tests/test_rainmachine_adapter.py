@@ -51,6 +51,7 @@ def test_plugin_metadata_is_set():
     assert RainMachineAdapter.plugin_name == "RainMachine (local API)"
     assert "zone_id" in RainMachineAdapter.config_schema
     assert "CANOPY_RAINMACHINE_PASSWORD" in RainMachineAdapter.required_env_vars
+    assert set(RainMachineAdapter.default_metric_config) == {"zone_active"}
 
 
 # ---- real end-to-end read against a real local server — login + token + zone query --
