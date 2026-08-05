@@ -1,0 +1,64 @@
+# An alternate, opt-in deployment for real Raspberry Pi hardware where local-network
+# device discovery (mDNS today — Shelly's Gen2/Gen3 "scan for nearby devices" button)
+# actually needs to work. The default docker-compose.yml runs edge-agent on Docker's
+# own isolated bridge network, which never sees multicast/broadcast traffic from your
+# real LAN — mDNS scans there always return nothing, not an error, so it's easy to not
+# notice why. This file trades that network isolation away specifically to fix that:
+# edge-agent runs with `network_mode: host`, sharing the Pi's real network namespace,
+# so it can actually receive mDNS responses. See docs/architecture.md's "Opt-in
+# local-network discovery for Pi deployments" for the full tradeoff explanation.
+#
+# `network_mode: host` only behaves as real host networking on Linux — this is the
+# reason it's a separate file rather than the default: it wouldn't do anything useful
+# on Docker Desktop for Mac/Windows, and shouldn't be the surprise default there.
+#
+# Usage: docker compose -f docker-compose.pi.yml up --build
+#        (add --profile multi-site the same way as the default file, if needed)
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports: ["1883:1883"]
+    volumes: ["./deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"]
+    restart: unless-stopped
+    profiles: ["multi-site"]
+
+  edge-agent:
+    build:
+      context: .
+      dockerfile: edge-agent/Dockerfile
+    network_mode: host
+    environment:
+      - CANOPY_DATA_DIR=/data
+      # "mosquitto" (the service name) can't resolve over Docker DNS once this
+      # container is on the host's network namespace instead of the compose
+      # project's bridge network — localhost works instead, since mosquitto's own
+      # ports: ["1883:1883"] still publishes it to the host either way.
+      - CANOPY_MQTT_HOST=localhost
+      - CANOPY_SITE_ID=site-1
+    volumes: ["edge-agent-data:/data"]
+    restart: unless-stopped
+
+  master:
+    build: ./master
+    ports: ["9100:9100"]
+    environment:
+      - CANOPY_MQTT_HOST=mosquitto
+      - CANOPY_MASTER_DATA_DIR=/data
+    volumes: ["master-data:/data"]
+    depends_on: [mosquitto]
+    restart: unless-stopped
+    profiles: ["multi-site"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: http://localhost:8000
+        VITE_MASTER_API_BASE: http://localhost:9100
+    ports: ["5173:80"]
+    depends_on: [edge-agent]
+    restart: unless-stopped
+
+volumes:
+  edge-agent-data:
+  master-data:

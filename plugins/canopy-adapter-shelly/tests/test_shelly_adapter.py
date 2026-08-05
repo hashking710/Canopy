@@ -1,6 +1,12 @@
 import pytest
 from aiohttp import web
-from canopy_adapter_shelly import ShellyAdapter, _parse_gen1_status, _parse_gen2_status
+import canopy_adapter_shelly
+from canopy_adapter_shelly import (
+    ShellyAdapter,
+    _format_mdns_results,
+    _parse_gen1_status,
+    _parse_gen2_status,
+)
 from canopy_agent.models import Room
 
 
@@ -69,6 +75,48 @@ def test_plugin_metadata_is_set():
     assert ShellyAdapter.plugin_name == "Shelly (local API)"
     assert "host" in ShellyAdapter.config_schema
     assert set(ShellyAdapter.default_metric_config) == {"power_w"}
+    assert ShellyAdapter.supports_discovery is True
+
+
+# ---- mDNS discovery — the formatting step is pure and fully tested; the live-scan
+# half (_scan_mdns_service) is monkeypatched, same "confirm plumbing, can't verify a
+# real device" boundary as the BLE adapters' discover() tests -------------------------
+
+
+def test_format_mdns_results_strips_the_service_type_suffix():
+    raw = {"shellyplus1-a4cf12abcdef._shelly._tcp.local.": ["192.168.1.42"]}
+    assert _format_mdns_results(raw) == [{"address": "192.168.1.42", "name": "shellyplus1-a4cf12abcdef"}]
+
+
+def test_format_mdns_results_takes_the_first_address_when_several_are_advertised():
+    raw = {"shellyplug-s-1a2b3c._shelly._tcp.local.": ["192.168.1.10", "192.168.1.11"]}
+    [result] = _format_mdns_results(raw)
+    assert result["address"] == "192.168.1.10"
+
+
+def test_format_mdns_results_skips_services_with_no_resolved_address():
+    raw = {"shellyplus1-a4cf12abcdef._shelly._tcp.local.": []}
+    assert _format_mdns_results(raw) == []
+
+
+def test_format_mdns_results_sorted_by_name():
+    raw = {
+        "shellyplus2pm-bb._shelly._tcp.local.": ["192.168.1.20"],
+        "shellyplus1-aa._shelly._tcp.local.": ["192.168.1.10"],
+    }
+    names = [r["name"] for r in _format_mdns_results(raw)]
+    assert names == ["shellyplus1-aa", "shellyplus2pm-bb"]
+
+
+async def test_discover_glues_the_scan_and_the_formatter(monkeypatch):
+    async def fake_scan(service_type, timeout):
+        assert service_type == canopy_adapter_shelly.MDNS_SERVICE_TYPE
+        return {"shellyplus1-a4cf12abcdef._shelly._tcp.local.": ["192.168.1.42"]}
+
+    monkeypatch.setattr(canopy_adapter_shelly, "_scan_mdns_service", fake_scan)
+
+    results = await ShellyAdapter.discover()
+    assert results == [{"address": "192.168.1.42", "name": "shellyplus1-a4cf12abcdef"}]
 
 
 # ---- real end-to-end read against a real local HTTP server, matching Shelly's real

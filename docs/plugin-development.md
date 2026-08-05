@@ -52,14 +52,21 @@ session/token rather than re-authenticating every call, track which credential v
 that session was established with and force a fresh login when it no longer matches —
 see `canopy-adapter-ac-infinity`/`canopy-adapter-rainmachine` for the pattern.
 
-**Device discovery (optional)**: if your device can be found via a local scan — BLE is
-the realistic case; see `docs/architecture.md`'s "In-app credentials + BLE device
-discovery" section for why broadcast-based LAN discovery (mDNS/SSDP) doesn't work under
-Canopy's default Docker networking — set `supports_discovery: ClassVar[bool] = True`
-and implement `async def discover(cls) -> list[dict]:` returning
-`[{"address": ..., "name": ...}, ...]`. The room-creation UI shows a "scan for nearby
-devices" button automatically for any adapter with the flag set; leave it `False`
-(the default) if there's nothing to scan for.
+**Device discovery (optional)**: if your device can be found via a local scan — BLE
+(`canopy-adapter-ble`, `canopy-adapter-aranet4`) or mDNS (`canopy-adapter-shelly`) are
+the two real examples — set `supports_discovery: ClassVar[bool] = True` and implement
+`async def discover(cls) -> list[dict]:` returning `[{"address": ..., "name": ...}, ...]`.
+The room-creation UI shows a "scan for nearby devices" button automatically for any
+adapter with the flag set; leave it `False` (the default) if there's nothing to scan
+for. Broadcast-based LAN discovery (mDNS/SSDP) only actually finds anything under
+`docker-compose.pi.yml`'s `network_mode: host` — the default Docker bridge network
+can't see real LAN multicast traffic at all, so a scan there always returns zero
+results rather than erroring. See `docs/architecture.md`'s "Opt-in local-network
+discovery for Pi deployments" section for the full explanation and
+`canopy_adapter_shelly`'s `_scan_mdns_service`/`_format_mdns_results` split for the
+"keep the live scan and the pure result-formatting separately testable" pattern to
+follow. BLE discovery isn't affected by any of this — it goes through direct hardware
+Bluetooth adapter access, not the container's network boundary.
 
 ## A minimal plugin package
 

@@ -1,10 +1,21 @@
+import asyncio
 from typing import Any, ClassVar
 
 import aiohttp
 from canopy_agent.adapters.base import SensorAdapter
 from canopy_agent.models import Room
+from zeroconf import IPVersion, ServiceStateChange
+from zeroconf.asyncio import AsyncServiceBrowser, AsyncZeroconf
 
 REQUEST_TIMEOUT_SECONDS = 8
+
+# Documented in Shelly's own API docs (shelly-api-docs.shelly.cloud, "mDNS Discovery")
+# for Gen2/Gen3's RPC-based devices. Confidence note, same honesty pattern as the BLE
+# adapters' protocol docs: Gen1 mDNS advertising is inconsistent across firmware
+# versions and not relied on here, so discover() is only confirmed to find Gen2/Gen3
+# hardware — Gen1 users may still need to type in an IP by hand.
+MDNS_SERVICE_TYPE = "_shelly._tcp.local."
+SCAN_TIMEOUT_SECONDS = 5.0
 
 
 class ShellyAdapter(SensorAdapter):
@@ -47,6 +58,14 @@ class ShellyAdapter(SensorAdapter):
         "username": "Optional — only if the device's local HTTP auth is enabled",
         "password": "Optional — only if the device's local HTTP auth is enabled",
     }
+    # Only actually finds anything when the edge-agent container can see real LAN
+    # multicast traffic — the default Docker bridge network can't (see
+    # docs/architecture.md's "Opt-in local-network discovery for Pi deployments"),
+    # so this requires docker-compose.pi.yml's network_mode: host. Still declared
+    # unconditionally true: supports_discovery describes what the adapter can do,
+    # not what today's specific deployment happens to allow — same as how
+    # required_env_vars doesn't change based on whether the var is already set.
+    supports_discovery: ClassVar[bool] = True
     # Just power_w, not voltage/current/energy/temp — those are Gen2/3-only and
     # conditional even then (see _parse_gen2_status), so a fixed default risks rows
     # that never populate on Gen1 hardware; power_w is the one metric every
@@ -63,6 +82,11 @@ class ShellyAdapter(SensorAdapter):
 
     async def disconnect(self, room: Room) -> None:
         pass  # shared session; never torn down per-room, same as every other adapter
+
+    @classmethod
+    async def discover(cls) -> list[dict]:
+        raw = await _scan_mdns_service(MDNS_SERVICE_TYPE, SCAN_TIMEOUT_SECONDS)
+        return _format_mdns_results(raw)
 
     async def read(self, room: Room) -> dict[str, float]:
         config = room.adapter_config
@@ -95,6 +119,54 @@ class ShellyAdapter(SensorAdapter):
             if resp.status != 200:
                 raise RuntimeError(f"Shelly request to {url} returned HTTP {resp.status}")
             return await resp.json(content_type=None)
+
+
+async def _scan_mdns_service(service_type: str, timeout: float) -> dict[str, list[str]]:
+    """The live-network half of discover() — kept separate from the pure formatting
+    step below so tests can monkeypatch this one function directly and verify the
+    formatting logic without a real zeroconf/multicast environment (same split as
+    canopy-adapter-ble's scan_for_nearby_devices/decode_ble_value boundary). Returns
+    {mdns instance name: [ip addresses]} for every service seen advertising
+    `service_type` within `timeout` seconds."""
+    aiozc = AsyncZeroconf()
+    found_names: set[str] = set()
+
+    def on_change(zeroconf, service_type, name, state_change) -> None:
+        if state_change is ServiceStateChange.Added:
+            found_names.add(name)
+
+    browser = AsyncServiceBrowser(aiozc.zeroconf, service_type, handlers=[on_change])
+    try:
+        await asyncio.sleep(timeout)
+    finally:
+        await browser.async_cancel()
+
+    results: dict[str, list[str]] = {}
+    try:
+        for name in found_names:
+            info = await aiozc.async_get_service_info(service_type, name)
+            if info is not None:
+                results[name] = info.parsed_addresses(IPVersion.V4Only)
+    finally:
+        await aiozc.async_close()
+    return results
+
+
+def _format_mdns_results(raw: dict[str, list[str]]) -> list[dict]:
+    """Pure — fully unit-testable without any real mDNS traffic. Drops services that
+    resolved a name but no address (can happen if a device disappears mid-scan);
+    takes the first IPv4 address for a service advertising more than one, since
+    adapter_config.host is a single string."""
+    results = []
+    for name, addresses in sorted(raw.items()):
+        if not addresses:
+            continue
+        # mDNS instance names are "<instance>.<service_type>" — strip the service
+        # type suffix so the UI shows e.g. "shellyplus1-a4cf12abcdef", not the full
+        # "shellyplus1-a4cf12abcdef._shelly._tcp.local.".
+        display_name = name.split(".")[0]
+        results.append({"address": addresses[0], "name": display_name})
+    return results
 
 
 def _parse_gen1_status(body: dict[str, Any]) -> dict[str, float]:

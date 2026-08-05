@@ -362,22 +362,61 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
     room-creation UI's new `DeviceDiscoveryPanel` shows a "scan for nearby devices"
     button for any adapter with `supports_discovery = true`; picking a result fills
     `adapter_config.address` directly — no external BLE scanner app needed first.
-  - **Local-network discovery (Shelly, Ecowitt, and similar) was deliberately not
-    built**, not merely deferred: `docker inspect` against a running edge-agent
-    container confirmed it sits on Docker's own isolated bridge subnet (e.g.
-    `192.168.16.0/24`), completely separate from the host's real LAN. mDNS/SSDP
-    discovery depends on receiving broadcast/multicast traffic from the real LAN,
-    which never reaches a bridge-networked container — it would need
-    `network_mode: host` in `docker-compose.yml` to work at all, a real
-    security/isolation tradeoff (the container would then share the host's entire
-    network namespace) that wasn't made unilaterally here. BLE discovery has no such
-    problem: it works through the same direct hardware Bluetooth adapter access the
-    `ble` and `aranet4` adapters' own `read()` already require via `bleak` — a
-    connection to a local Bluetooth controller, not a request that has to traverse
-    the container's network boundary at all. Outbound HTTP to a specific,
-    already-known IP (how Shelly's `read()` itself works today) is unaffected by any
-    of this either — only *discovering* an unknown device's IP via broadcast is the
-    part that doesn't work under bridge networking.
+  - **Local-network discovery (mDNS/SSDP for Shelly, Ecowitt, and similar) was not
+    built as part of the default deployment**, not silently skipped: `docker inspect`
+    against a running edge-agent container confirmed it sits on Docker's own isolated
+    bridge subnet (e.g. `192.168.16.0/24`), completely separate from the host's real
+    LAN. mDNS/SSDP discovery depends on receiving broadcast/multicast traffic from the
+    real LAN, which never reaches a bridge-networked container — a scan there always
+    returns zero results, not an error, so it would be easy to ship something that
+    silently never works. BLE discovery has no such problem: it works through the same
+    direct hardware Bluetooth adapter access the `ble` and `aranet4` adapters' own
+    `read()` already require via `bleak` — a connection to a local Bluetooth
+    controller, not a request that has to traverse the container's network boundary at
+    all. Outbound HTTP to a specific, already-known IP (how Shelly's `read()` itself
+    works today) is unaffected by any of this either — only *discovering* an unknown
+    device's IP via broadcast is the part that doesn't work under bridge networking.
+    Fixed for real Pi hardware as an opt-in deployment mode — see below — rather than
+    changed for everyone, since it's a genuine network-isolation tradeoff.
+
+- **Opt-in local-network discovery for Pi deployments (built)**: `docker-compose.pi.yml`
+  is a complete, standalone alternative to the default `docker-compose.yml` — run it
+  with `docker compose -f docker-compose.pi.yml up --build` instead — that sets
+  `network_mode: host` on `edge-agent`, giving it the Pi's real network namespace
+  instead of Docker's isolated bridge subnet, so mDNS scans actually see real LAN
+  traffic. A separate file rather than a flag on the default one because
+  `network_mode: host` only behaves as real host networking on Linux (Docker Desktop
+  for Mac/Windows fakes it, so it wouldn't do anything useful there) and because
+  giving up network isolation should be something a Pi user opts into deliberately,
+  not a default surprise. `CANOPY_MQTT_HOST` changes from `mosquitto` (the Docker DNS
+  service name, unreachable once `edge-agent` is off the bridge network) to `localhost`
+  (mosquitto's `1883:1883` port mapping still publishes it to the host either way) —
+  the one other change needed for the multi-site profile to keep working under host
+  networking.
+  - `ShellyAdapter.discover()` (`plugins/canopy-adapter-shelly`) is the first adapter
+    to use this: a `zeroconf`-based scan for `_shelly._tcp.local.`, the mDNS service
+    type Shelly's own API docs (shelly-api-docs.shelly.cloud, "mDNS Discovery")
+    document for Gen2/Gen3 devices. Confidence note, same honesty pattern as the BLE
+    adapters' protocol docs: Gen1 mDNS advertising is inconsistent across firmware
+    versions and isn't relied on here, so `discover()` is only confirmed to find
+    Gen2/Gen3 hardware — Gen1 users may still need to type in an IP by hand. The scan
+    (`_scan_mdns_service`) and the result formatting (`_format_mdns_results`, which
+    strips the mDNS service-type suffix and picks the first advertised address) are
+    deliberately separate functions — the same split canopy-adapter-ble uses for
+    `scan_for_nearby_devices`/`decode_ble_value` — so the formatting logic is fully
+    unit-tested without any real mDNS traffic, while the live scan itself carries the
+    same "can't verify without real hardware" caveat as every other discover()
+    implementation.
+  - **SSDP was not implemented**: none of the currently installed local-network
+    adapters are confirmed to advertise over SSDP/UPnP with the same documentation-
+    backed confidence Shelly's mDNS support has — building a generic SSDP scanner with
+    nothing concrete to point it at would be speculative infrastructure, not a real
+    feature. Worth revisiting if a future adapter's device actually uses it.
+  - **Ecowitt was not given a discover() either**: its local-network gateways use a
+    proprietary UDP discovery protocol that isn't officially published, and getting an
+    active broadcast/write protocol wrong (unlike mDNS/BLE, which are passive listens)
+    risks sending malformed packets onto a real LAN — a real device vendor's reverse-
+    engineered protocol was judged not worth guessing at here.
 
 - **Publishing (built)**: `edge-agent/canopy_agent/services/mqtt_publisher.py` publishes
   every room's current state as a *retained* MQTT message on

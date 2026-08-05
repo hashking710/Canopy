@@ -77,6 +77,12 @@ hardware, see "Running with Docker" just below.
 Nothing about a single Pi's setup changes if you later add `master` — it's purely
 additive, and safe to skip entirely if you're not sure you need it yet.
 
+If you're running on real Pi hardware and want the room-creation UI's "scan for
+nearby devices" button to actually find local-network devices (Shelly today), use
+`docker-compose.pi.yml` instead of the default file — see "Running on a Pi with
+local-network device discovery" below. It's a separate opt-in file, not a flag,
+because it trades away Docker's network isolation to make that scan possible.
+
 ## Running with Docker (fastest way to see the whole stack)
 
 ```bash
@@ -102,6 +108,21 @@ room state over MQTT, the master subscribes and mirrors it, and `/master` in the
 dashboard shows the same data through the master's API instead of the edge agent's.
 For iterating on code, running each service natively (below) is faster than rebuilding
 images on every change.
+
+### Running on a Pi with local-network device discovery
+
+```bash
+docker compose -f docker-compose.pi.yml up --build
+```
+
+By default `edge-agent` runs on Docker's own isolated network, same as any other
+container — which means BLE device scanning works (it talks straight to Bluetooth
+hardware), but mDNS scanning for local-network devices like Shelly can't see your
+real LAN's traffic and always finds nothing. `docker-compose.pi.yml` runs `edge-agent`
+with `network_mode: host` instead, giving it real access to your Pi's network so mDNS
+scans actually work. This only behaves as real host networking on Linux, which is why
+it's Pi-specific rather than the default everywhere. Everything else about it (ports,
+`--profile multi-site`, volumes) matches the default file.
 
 ## Running locally
 
