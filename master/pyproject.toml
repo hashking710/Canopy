@@ -2,6 +2,7 @@
 name = "canopy-master"
 version = "0.1.0"
 description = "Canopy master control panel — aggregates multiple edge-agent sites over MQTT"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

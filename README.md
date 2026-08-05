@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/hashking710/Canopy/actions/workflows/ci.yml"><img src="https://github.com/hashking710/Canopy/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/hashking710/Canopy" alt="License: MIT"></a>
   <img src="https://img.shields.io/github/last-commit/hashking710/Canopy" alt="Last commit">
 </p>
 
@@ -310,3 +311,11 @@ reverse proxy with a real certificate for anything reachable beyond your LAN.
   (credentials + optional TLS) for a real multi-site deployment.
 - [docs/discord-alerts.md](docs/discord-alerts.md) — wiring alert notifications to
   a Discord webhook.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Covers this repo (edge agent, frontend, master,
+and every first-party plugin under `plugins/`) end to end; nothing here is
+gated. The corporate tier's gating package (`canopy-license`) is a separate,
+closed-source repo — see [docs/licensing-design.md](docs/licensing-design.md)
+for why that split doesn't make this any less real open source.

@@ -2,6 +2,7 @@
 name = "canopy-agent"
 version = "0.1.0"
 description = "Canopy edge agent — runs on each Pi, polls sensors, serves the local dashboard API"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
