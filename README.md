@@ -227,7 +227,8 @@ npm run dev
 
 Run tests with `npm test` (Vitest + React Testing Library). `.github/workflows/ci.yml`
 runs the full suite — edge-agent, the AC Infinity plugin, master, and frontend — on
-every push once this repo has a GitHub remote.
+every push. (Currently blocked from actually running by a GitHub Actions billing lock
+on the account, not a workflow or code problem — see `docs/architecture.md`.)
 
 Serves the dashboard on `http://localhost:5173`, talking to the backend above. A
 light/dark theme toggle sits in the top-right corner of every page (defaults to your OS

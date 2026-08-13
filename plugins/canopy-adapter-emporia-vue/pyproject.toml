@@ -1,0 +1,31 @@
+[project]
+name = "canopy-adapter-emporia-vue"
+version = "0.1.0"
+description = "Emporia Vue whole-panel power monitoring adapter for Canopy — AWS Cognito SRP auth via pycognito, a real vetted library, not a hand-rolled auth handshake"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "aiohttp>=3.9",
+    "pycognito>=2024.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "aiohttp>=3.9",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+emporia_vue = "canopy_adapter_emporia_vue:EmporiaVueAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_emporia_vue*"]

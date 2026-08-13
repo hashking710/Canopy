@@ -95,15 +95,27 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
   `CANOPY_AC_INFINITY_EMAIL` / `CANOPY_AC_INFINITY_PASSWORD` and a room's
   `adapter_config.dev_id`, then confirm the readings it reports match the AC Infinity
   app.
-- **AC Infinity — Bluetooth-only controllers (Controller 67, base 69) — not built**:
-  these never sync to AC Infinity's cloud, so the adapter above can't reach them. The
-  community has reverse-engineered the BLE GATT protocol (see the
-  [Home Assistant Community thread](https://community.home-assistant.io/t/ac-infinity-bluetooth-69-pro-controllers-successful/514068)),
-  but it's forum-documented hex payloads, not a maintained library — writing a `bleak`
-  adapter against it needs a real controller nearby to test against. Would become its
-  own `plugins/canopy-adapter-ac-infinity-ble/` package once there's hardware on hand
-  to verify against, per the user's plan to hold hardware work until the software is
-  closer to shippable.
+- **AC Infinity — Bluetooth-only controllers (`ac_infinity_ble`, built)**:
+  `plugins/canopy-adapter-ac-infinity-ble/`, for Controller 67/69 Pro and similar UIS
+  controllers that never sync to AC Infinity's cloud, so the adapter above can't reach
+  them. Confidence note, stronger than most in this ecosystem: rather than
+  reconstructing the protocol from a forum thread's hex payloads or from memory, the
+  byte layout is a direct, byte-for-byte port of a real MIT-licensed library's actual
+  source — [hunterjm/ac-infinity-ble](https://github.com/hunterjm/ac-infinity-ble)
+  (PyPI: `ac-infinity-ble`) — fetched and read directly. The temperature-is-Celsius
+  and VPD-is-kPa interpretations are further corroborated against that same author's
+  separate, real Home Assistant integration
+  ([hunterjm/ac-infinity-hacs](https://github.com/hunterjm/ac-infinity-hacs)), whose
+  `sensor.py` declares `UnitOfTemperature.CELSIUS` for the same raw value with no
+  conversion — two independent, real pieces of software agreeing on what the bytes
+  mean. Passive only, by design: every value comes from the BLE advertisement's
+  manufacturer-specific data (company ID 2306), the same "no active connection"
+  advertising path `canopy-adapter-ble`'s `BleAdvertisementAdapter` already uses —
+  this adapter never connects to or writes anything to the controller, so there's no
+  risk of it changing a fan's speed or mode (setting fan speed was out of scope
+  regardless — `SensorAdapter` is read-only by design, see `adapters/base.py`).
+  `hunterjm/ac-infinity-ble`'s own README describes itself as "Pre-Alpha", so real
+  hardware verification is still warranted before trusting production values.
 - **Direct-attached Pi sensors — GPIO/I2C/1-Wire (`gpio`, built)**:
   `plugins/canopy-adapter-gpio/`, now 9 sensor "kinds" behind one adapter, each
   described by `room.adapter_config` rather than hardcoded: `sht31` (I2C temp/RH),
@@ -238,13 +250,30 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
   - Both adapters' real protocol shape (auth flow, request/response plumbing) is
     verified against a real local server; the exact zone-state value semantics are
     implemented from recollection, not verified against a real device.
-- **Deliberately not built — Emporia Vue (whole-panel power monitoring)**: was on the
-  original brainstormed list, skipped because its cloud API authenticates via AWS
-  Cognito SRP (Secure Remote Password) — a genuinely complex challenge-response
-  protocol, meaningfully higher-risk to implement correctly from memory than anything
-  else in this ecosystem (more so even than Tuya's AES, which has a mature library to
-  lean on). Worth adding if a maintained Python SRP/Cognito client is vetted first,
-  not by hand-rolling the auth handshake.
+- **Emporia Vue — whole-panel power monitoring (`emporia_vue`, built)**:
+  `plugins/canopy-adapter-emporia-vue/`. Was originally skipped because its cloud API
+  authenticates via AWS Cognito SRP (Secure Remote Password) — a genuinely complex
+  challenge-response protocol, too risky to hand-roll from memory — with the noted
+  path forward being to add it once a maintained Python SRP/Cognito client was
+  vetted. Built on exactly that: [`pycognito`](https://pypi.org/project/pycognito/)
+  (PyPI, MIT licensed, depends on `boto3`/`pyjwt`) does the actual SRP handshake;
+  this adapter hand-rolls the rest of the HTTP calls with `aiohttp` itself, the same
+  "depend on a vetted library only for the genuinely hard cryptographic part" shape
+  as `canopy-adapter-tuya`'s `tinytuya` dependency for AES. The Cognito user/client
+  pool IDs, the `AppAPI?apiMethod=getDeviceListUsages` endpoint shape, and the
+  kWh-at-1-second-scale→watts conversion (`usage * 3600 * 1000`) were taken directly
+  from reading [`magico13/PyEmVue`](https://github.com/magico13/PyEmVue)'s real
+  source (PyPI: `pyemvue`, v0.18.9, MIT licensed) rather than reconstructed from
+  memory, and that watts conversion is independently corroborated by a second,
+  unrelated project (mcsMQTT, a HomeSeer plugin) using the same formula. Credentials
+  (`CANOPY_EMPORIA_EMAIL`/`CANOPY_EMPORIA_PASSWORD`) follow the same hot-reload
+  pattern as every other cloud adapter — read fresh in `read()`, with a
+  `_logged_in_with` tuple forcing a real re-login when they change, same as
+  `canopy-adapter-ac-infinity`. Not yet verified against a real Emporia Vue account
+  or device — the request/response plumbing (headers, params, retry-once-on-401) is
+  tested against a real local HTTP server, but the actual auth handshake and value
+  semantics carry the same "needs a real account to fully trust" caveat as every
+  other from-source-not-from-hardware adapter here.
 - **Modbus TCP/RTU — generic (`modbus`, built)**:
   `plugins/canopy-adapter-modbus/`. Came out of hardware-landscape research into what
   commercial cultivation facilities actually run (Trolmaster, Argus, Priva, Growlink,
@@ -946,8 +975,11 @@ live curl/Playwright checks); nothing in this section is a stub.
   Caught a real bug: `ScanInput` was stealing focus back after every scan, undoing a
   caller's attempt to move focus to the next field — fixed, then locked in with a
   regression test. `.github/workflows/ci.yml` runs edge-agent+plugin, master, and
-  frontend test suites on every push (three jobs) — written and correct, but only
-  actually runs once this repo has a GitHub remote (it's still local-only).
+  frontend test suites on every push (three jobs) — written and correct, and the repo
+  now has a real GitHub remote (`github.com/hashking710/Canopy`), but the workflow
+  runs are currently failing before any job starts (`gh run view` shows "your account
+  is locked due to a billing issue") — a GitHub Actions billing problem on the
+  account, not a defect in the workflow or the code it tests.
 - **Docker / docker-compose (built)**: `edge-agent/Dockerfile`, `master/Dockerfile`,
   `frontend/Dockerfile` (multi-stage Node build → nginx), and a root `docker-compose.yml`
   wiring up `mosquitto` (real Mosquitto, not the `amqtt` dev broker — `deploy/mosquitto.conf`

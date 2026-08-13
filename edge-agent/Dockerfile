@@ -26,6 +26,8 @@ COPY edge-agent/alembic.ini ./
 # BlueZ over D-Bus when actually scanning/connecting, not at import time — but need
 # a real BLE adapter passed through (and BlueZ running) to actually read anything.
 COPY plugins/canopy-adapter-ac-infinity /plugins/canopy-adapter-ac-infinity
+COPY plugins/canopy-adapter-ac-infinity-ble /plugins/canopy-adapter-ac-infinity-ble
+COPY plugins/canopy-adapter-emporia-vue /plugins/canopy-adapter-emporia-vue
 COPY plugins/canopy-adapter-modbus /plugins/canopy-adapter-modbus
 COPY plugins/canopy-adapter-trolmaster /plugins/canopy-adapter-trolmaster
 COPY plugins/canopy-adapter-mqtt /plugins/canopy-adapter-mqtt
@@ -48,6 +50,8 @@ COPY plugins/canopy-compliancesync-metrc /plugins/canopy-compliancesync-metrc
 
 RUN pip install --no-cache-dir . \
     /plugins/canopy-adapter-ac-infinity \
+    /plugins/canopy-adapter-ac-infinity-ble \
+    /plugins/canopy-adapter-emporia-vue \
     /plugins/canopy-adapter-modbus \
     /plugins/canopy-adapter-trolmaster \
     /plugins/canopy-adapter-mqtt \

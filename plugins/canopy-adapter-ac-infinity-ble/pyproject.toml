@@ -1,0 +1,29 @@
+[project]
+name = "canopy-adapter-ac-infinity-ble"
+version = "0.1.0"
+description = "AC Infinity Bluetooth-only UIS controller sensor adapter for Canopy (Controller 67, 69 Pro, and similar — never sync to the cloud)"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "bleak>=0.22",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+ac_infinity_ble = "canopy_adapter_ac_infinity_ble:AcInfinityBleAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_ac_infinity_ble*"]
