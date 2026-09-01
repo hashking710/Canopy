@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, type BackupStatus, type SecretInfo } from "../api/client";
+import { Link } from "react-router-dom";
+import { api, type BackupStatus, type MenuSyncStatus, type SecretInfo } from "../api/client";
 import { Card } from "../components/Card";
 import { OperatorPicker } from "../components/OperatorPicker";
 import { TopNav } from "../components/TopNav";
@@ -56,6 +57,76 @@ function BackupsCard() {
         {submitting ? "backing up…" : "back up now"}
       </button>
       {runError && <p className="form-error" role="alert">{runError}</p>}
+    </Card>
+  );
+}
+
+function MenuSyncCard() {
+  const [status, setStatus] = useState<MenuSyncStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const {
+    operators,
+    currentOperatorId,
+    currentOperator,
+    changeCurrentOperator,
+    handleOperatorCreated,
+    handleOperatorUpdated,
+    handleOperatorDeactivated,
+  } = useCurrentOperator();
+  const { submitting, error: runError, run } = useSubmitState();
+
+  const refresh = () => {
+    api.getMenuSyncStatus().then(setStatus).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  };
+
+  useEffect(refresh, []);
+
+  const syncNow = () =>
+    run(async () => {
+      if (!currentOperator) throw new Error("pick who you are (below) before syncing");
+      await api.runMenuSyncNow(currentOperator.id);
+      refresh();
+    });
+
+  const activeProviderInfo = status?.available_providers.find((p) => p.type === status.active_provider);
+
+  return (
+    <Card>
+      <p className="card-subtitle">POS / menu sync</p>
+      <p className="stat-label" style={{ margin: "4px 0 12px" }}>
+        Pushes current inventory — including genetics and THC/CBD potency, see the{" "}
+        <Link to="/genetics">Genetics</Link> page — to a point-of-sale or menu listing service (e.g. Weedmaps) on an
+        interval. Credentials for whichever provider is active show up in the credentials card below once that
+        provider is installed.
+      </p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {!error && !status && <p className="stat-label">Loading…</p>}
+      {status && (
+        <>
+          <p className="stat-label" style={{ margin: "0 0 4px" }}>
+            Active provider: <strong>{activeProviderInfo?.plugin_name ?? status.active_provider}</strong>
+            {activeProviderInfo?.plugin_description ? ` — ${activeProviderInfo.plugin_description}` : ""}
+          </p>
+          <p className="stat-label" style={{ margin: "0 0 12px" }}>
+            {status.last_synced_at
+              ? `Last synced: ${formatDateTime(status.last_synced_at)} (${status.last_result.pushed ?? 0} pushed, ${status.last_result.skipped ?? 0} skipped)`
+              : "Never synced yet."}
+            {status.last_error && <span className="form-error"> — last attempt failed: {status.last_error}</span>}
+          </p>
+          <OperatorPicker
+            operators={operators}
+            currentOperatorId={currentOperatorId}
+            onChange={changeCurrentOperator}
+            onOperatorCreated={handleOperatorCreated}
+            onOperatorUpdated={handleOperatorUpdated}
+            onOperatorDeactivated={handleOperatorDeactivated}
+          />
+          <button className="inline-button" onClick={syncNow} disabled={submitting}>
+            {submitting ? "syncing…" : "sync now"}
+          </button>
+          {runError && <p className="form-error" role="alert">{runError}</p>}
+        </>
+      )}
     </Card>
   );
 }
@@ -246,6 +317,7 @@ export function Settings() {
         </div>
       </Card>
 
+      <MenuSyncCard />
       <CredentialsCard />
       <BackupsCard />
     </div>

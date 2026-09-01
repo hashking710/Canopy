@@ -146,3 +146,80 @@ def test_deactivate_operator_disappears_from_active_list(client):
     # deactivated operators can no longer authenticate compliance actions
     verify = client.post(f"/api/operators/{created['id']}/verify-pin", json={"pin": "anything"})
     assert verify.status_code == 404
+
+
+# ---- notification preferences ----------------------------------------------------------
+
+
+def test_create_operator_accepts_notification_preferences(client):
+    created = client.post(
+        "/api/operators",
+        json={
+            "name": "Manager Mia", "notify_email": "mia@example.com", "notify_on_alerts": True,
+            "notify_on_system_errors": True, "notify_min_severity": "warning",
+        },
+    ).json()
+    assert created["notify_email"] == "mia@example.com"
+    assert created["notify_on_alerts"] is True
+    assert created["notify_min_severity"] == "warning"
+
+
+def test_create_operator_defaults_notifications_off(client):
+    created = client.post("/api/operators", json={"name": "No Prefs"}).json()
+    assert created["notify_email"] is None
+    assert created["notify_on_alerts"] is False
+    assert created["notify_on_system_errors"] is False
+    assert created["notify_min_severity"] == "critical"
+
+
+def test_create_operator_rejects_unknown_severity(client):
+    resp = client.post("/api/operators", json={"name": "Bad Severity", "notify_min_severity": "urgent"})
+    assert resp.status_code == 400
+
+
+def test_update_notification_preferences(client):
+    created = client.post("/api/operators", json={"name": "Grower Greg"}).json()
+    resp = client.put(
+        f"/api/operators/{created['id']}/notification-preferences",
+        json={
+            "notify_email": "greg@example.com", "notify_on_alerts": True,
+            "notify_on_system_errors": False, "notify_min_severity": "warning",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["notify_email"] == "greg@example.com"
+    assert body["notify_on_alerts"] is True
+    assert body["notify_min_severity"] == "warning"
+
+    # persisted, not just echoed back
+    listed = next(o for o in client.get("/api/operators").json() if o["id"] == created["id"])
+    assert listed["notify_email"] == "greg@example.com"
+
+
+def test_update_notification_preferences_for_nonexistent_operator_is_404(client):
+    resp = client.put(
+        "/api/operators/does-not-exist/notification-preferences",
+        json={"notify_on_alerts": True},
+    )
+    assert resp.status_code == 404
+
+
+def test_update_notification_preferences_rejects_unknown_severity(client):
+    created = client.post("/api/operators", json={"name": "Grower Greg"}).json()
+    resp = client.put(
+        f"/api/operators/{created['id']}/notification-preferences",
+        json={"notify_min_severity": "urgent"},
+    )
+    assert resp.status_code == 400
+
+
+def test_update_notification_preferences_has_no_role_gate_self_service(client):
+    """Deliberately not role-gated — this is personal preference data about the
+    operator making the request, same "self-service" reasoning as PIN reset."""
+    viewer = client.post("/api/operators", json={"name": "Just Looking", "role": "viewer"}).json()
+    resp = client.put(
+        f"/api/operators/{viewer['id']}/notification-preferences",
+        json={"notify_on_alerts": True},
+    )
+    assert resp.status_code == 200

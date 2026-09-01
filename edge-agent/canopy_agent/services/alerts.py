@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from canopy_agent.models import AlertEvent, AlertRule
 from canopy_agent.notifications.registry import get_active_channels
+from canopy_agent.services.personal_notify import notify_operators_of_alert
 
 logger = logging.getLogger("canopy_agent.alerts")
 
@@ -79,3 +80,13 @@ async def dispatch_alert_notifications(events: list[AlertEvent], room_id: str) -
                 await channel.send(payload)
             except Exception:
                 logger.exception("notification channel '%s' failed to deliver an alert", channel.plugin_name)
+        # Facility-wide channels above are unconditional/shared; this additionally
+        # emails any operator who's personally subscribed (see
+        # services/personal_notify.py) — a distinct, opt-in delivery path, not a
+        # duplicate of the above. Guarded the same way the channel loop above is:
+        # a personal-notification failure must never propagate out of here and
+        # take down the poller task that called this.
+        try:
+            await notify_operators_of_alert(payload)
+        except Exception:
+            logger.exception("failed to notify operators personally of an alert")

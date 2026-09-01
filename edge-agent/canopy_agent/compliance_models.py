@@ -61,6 +61,45 @@ class Operator(Base):
     active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
+    # Personal notification preferences (migration pending, added alongside menu sync).
+    # Self-service, not role-derived: the backend just stores whatever's submitted —
+    # any role-based "sensible default" is a frontend suggestion only (see
+    # OperatorPicker.tsx), never enforced server-side. Off by default for every
+    # existing operator (a new opt-in capability, not a new restriction — no deadlock
+    # concern like `role`'s own migration had to work around).
+    notify_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    notify_on_alerts: Mapped[bool] = mapped_column(default=False)
+    notify_on_system_errors: Mapped[bool] = mapped_column(default=False)
+    notify_min_severity: Mapped[str] = mapped_column(String, default="critical")  # "warning" | "critical"
+
+
+class Strain(Base):
+    """
+    A genetics registry entry — optional structured metadata a `PlantBatch`/`Plant`/
+    `Harvest` can link to via `strain_id`, layered on top of (not replacing) their own
+    free-text `strain` field. Exists for two things the free-text field can't carry:
+    lineage/type for display, and a "typical" potency to fall back on for menu sync
+    (see services/menu_data.py) when a specific package has no lab test of its own yet.
+
+    Deliberately optional/additive rather than a migration of existing `strain` columns
+    to a hard foreign key — that would mean either a risky backfill (matching free text
+    to registry entries is lossy/ambiguous) or breaking every existing compliance record
+    that doesn't cleanly match a registry entry. A facility that doesn't care about the
+    registry can keep typing strain names exactly as before.
+    """
+
+    __tablename__ = "strains"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True)
+    lineage: Mapped[str] = mapped_column(String, default="")  # e.g. "OG Kush x Sour Diesel"
+    strain_type: Mapped[str] = mapped_column(String, default="unknown")  # indica | sativa | hybrid | unknown
+    description: Mapped[str] = mapped_column(String, default="")
+    thc_pct_typical: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cbd_pct_typical: Mapped[float | None] = mapped_column(Float, nullable=True)
+    active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
 
 class PlantBatch(Base):
     """An immature, count-based plant lot — METRC's PlantBatch. Individual plants are
@@ -72,6 +111,7 @@ class PlantBatch(Base):
     name: Mapped[str] = mapped_column(String, unique=True)
     batch_type: Mapped[str] = mapped_column(String)  # "Seed" | "Clone"
     strain: Mapped[str] = mapped_column(String)
+    strain_id: Mapped[str | None] = mapped_column(ForeignKey("strains.id"), nullable=True)
     room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id"), index=True)
     planted_date: Mapped[date] = mapped_column(Date)
     source_batch_id: Mapped[str | None] = mapped_column(ForeignKey("plant_batches.id"), nullable=True)
@@ -96,6 +136,7 @@ class Plant(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)  # the plant tag/label
     batch_id: Mapped[str | None] = mapped_column(ForeignKey("plant_batches.id"), nullable=True)
     strain: Mapped[str] = mapped_column(String)
+    strain_id: Mapped[str | None] = mapped_column(ForeignKey("strains.id"), nullable=True)
     room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id"), index=True)
     growth_phase: Mapped[str] = mapped_column(String)  # "Vegetative" | "Flowering"
     planted_date: Mapped[date] = mapped_column(Date)
@@ -115,6 +156,7 @@ class Harvest(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, unique=True)
     strain: Mapped[str] = mapped_column(String)
+    strain_id: Mapped[str | None] = mapped_column(ForeignKey("strains.id"), nullable=True)
     source_room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id"))
     drying_room_id: Mapped[str | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
     wet_weight_g: Mapped[float] = mapped_column(Float)
@@ -168,6 +210,11 @@ class Package(Base):
     item_name: Mapped[str] = mapped_column(String)
     weight_g: Mapped[float] = mapped_column(Float)
     room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id"), index=True)
+    # What this package is listed for sale at, for menu sync (services/menu_data.py) to
+    # push out — optional, and deliberately not a real pricing/tiers system. Canopy
+    # doesn't own pricing; the POS/dispensary does. This is just "what to list it at"
+    # for a facility that wants Canopy to supply one at all.
+    list_price_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_production_batch: Mapped[bool] = mapped_column(default=False)
     is_donation: Mapped[bool] = mapped_column(default=False)
 
@@ -359,3 +406,20 @@ class FacilitySecuritySettings(Base):
     require_operator_pins: Mapped[bool] = mapped_column(default=False)
     updated_by: Mapped[str] = mapped_column(String, default="unknown")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class MenuSyncStatus(Base):
+    """
+    The last result of pushing a menu snapshot to the active menu_sync plugin (see
+    services/menu_sync_task.py) — persisted, not just kept in-memory (unlike
+    services/health.py's per-process task tracker), so the Settings page can show a
+    meaningful "last synced" time across restarts, same "always exactly one row"
+    pattern as RelayCursor/FacilityComplianceState.
+    """
+
+    __tablename__ = "menu_sync_status"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_result: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_error: Mapped[str | None] = mapped_column(String, nullable=True)

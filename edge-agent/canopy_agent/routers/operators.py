@@ -30,6 +30,37 @@ class CreateOperatorRequest(BaseModel):
     # new facility has no operator with permission to grant anyone the admin role
     # that granting itself requires, a real deadlock, not a hypothetical one.
     role: str = "operator"
+    # Notification preferences are self-service: whatever's submitted here is just
+    # stored as-is, with no server-side role-based defaulting — a role-based
+    # *suggestion* is a frontend nicety only (see OperatorPicker.tsx), never
+    # enforced server-side.
+    notify_email: str | None = None
+    notify_on_alerts: bool = False
+    notify_on_system_errors: bool = False
+    notify_min_severity: str = "critical"
+
+
+class UpdateNotificationPreferencesRequest(BaseModel):
+    notify_email: str | None = None
+    notify_on_alerts: bool = False
+    notify_on_system_errors: bool = False
+    notify_min_severity: str = "critical"
+
+
+KNOWN_SEVERITIES = frozenset({"warning", "critical"})
+
+
+def _operator_dict(operator: Operator) -> dict:
+    return {
+        "id": operator.id,
+        "name": operator.name,
+        "role": operator.role,
+        "has_pin": bool(operator.pin_hash),
+        "notify_email": operator.notify_email,
+        "notify_on_alerts": operator.notify_on_alerts,
+        "notify_on_system_errors": operator.notify_on_system_errors,
+        "notify_min_severity": operator.notify_min_severity,
+    }
 
 
 class SetRoleRequest(BaseModel):
@@ -69,22 +100,50 @@ def create_operator(body: CreateOperatorRequest, db: Session = Depends(get_db)) 
         raise HTTPException(status_code=400, detail="a PIN is required for every operator at this facility")
     if body.role not in KNOWN_ROLES:
         raise HTTPException(status_code=400, detail=f"role must be one of {sorted(KNOWN_ROLES)}")
+    if body.notify_min_severity not in KNOWN_SEVERITIES:
+        raise HTTPException(status_code=400, detail=f"notify_min_severity must be one of {sorted(KNOWN_SEVERITIES)}")
 
     is_first_operator = db.execute(select(Operator.id).limit(1)).first() is None
     role = "admin" if is_first_operator else body.role
 
-    operator = Operator(id=f"op-{uuid.uuid4().hex[:10]}", name=body.name, role=role)
+    operator = Operator(
+        id=f"op-{uuid.uuid4().hex[:10]}", name=body.name, role=role,
+        notify_email=body.notify_email, notify_on_alerts=body.notify_on_alerts,
+        notify_on_system_errors=body.notify_on_system_errors, notify_min_severity=body.notify_min_severity,
+    )
     if body.pin:
         set_pin(operator, body.pin)
     db.add(operator)
     db.commit()
-    return {"id": operator.id, "name": operator.name, "role": operator.role, "has_pin": bool(operator.pin_hash)}
+    return _operator_dict(operator)
 
 
 @router.get("")
 def list_operators(db: Session = Depends(get_db)) -> list[dict]:
     operators = db.execute(select(Operator).where(Operator.active == True)).scalars().all()  # noqa: E712
-    return [{"id": o.id, "name": o.name, "role": o.role, "has_pin": bool(o.pin_hash)} for o in operators]
+    return [_operator_dict(o) for o in operators]
+
+
+@router.put("/{operator_id}/notification-preferences")
+def update_notification_preferences(
+    operator_id: str, body: UpdateNotificationPreferencesRequest, db: Session = Depends(get_db)
+) -> dict:
+    """Self-service — personal preference data about the operator making the
+    request, not a privileged action on someone else, so this doesn't gate on role
+    the way e.g. set_operator_role does (mirrors reset_operator_pin's own
+    simplicity for the same reason)."""
+    operator = get_active_operator(db, operator_id)
+    if operator is None:
+        raise HTTPException(status_code=404, detail="operator not found")
+    if body.notify_min_severity not in KNOWN_SEVERITIES:
+        raise HTTPException(status_code=400, detail=f"notify_min_severity must be one of {sorted(KNOWN_SEVERITIES)}")
+
+    operator.notify_email = body.notify_email
+    operator.notify_on_alerts = body.notify_on_alerts
+    operator.notify_on_system_errors = body.notify_on_system_errors
+    operator.notify_min_severity = body.notify_min_severity
+    db.commit()
+    return _operator_dict(operator)
 
 
 @router.post("/{operator_id}/role")

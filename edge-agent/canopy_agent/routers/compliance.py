@@ -20,6 +20,7 @@ from canopy_agent.compliance_models import (
     Plant,
     PlantBatch,
     PhysicalCount,
+    Strain,
     WasteEvent,
 )
 from canopy_agent.compliance_schemas import (
@@ -90,6 +91,17 @@ def _resolve_operator(db: Session, operator_id: str) -> Operator:
     return operator
 
 
+def _validate_strain_id(db: Session, strain_id: str | None) -> None:
+    """strain_id is an optional link to the genetics registry (see
+    services/menu_data.py) — if one's given, it needs to actually point at a real,
+    active strain, or menu sync would silently resolve nothing for it later."""
+    if strain_id is None:
+        return
+    strain = db.get(Strain, strain_id)
+    if strain is None or not strain.active:
+        raise HTTPException(status_code=404, detail=f"strain '{strain_id}' not found or inactive")
+
+
 def _require_pin_if_configured(operator: Operator, pin: str | None) -> None:
     if pin_check_failed(operator, pin):
         raise HTTPException(status_code=401, detail=f"PIN required or incorrect for operator '{operator.name}'")
@@ -110,11 +122,13 @@ def _resolve_witness(db: Session, witness_operator_id: str | None, actor: Operat
 @router.post("/plant-batches")
 async def create_plant_batch(body: CreatePlantBatchRequest, db: Session = Depends(get_db)) -> dict:
     operator = _resolve_operator(db, body.operator_id)
+    _validate_strain_id(db, body.strain_id)
     batch = PlantBatch(
         id=_new_id("batch"),
         name=body.name,
         batch_type=body.batch_type,
         strain=body.strain,
+        strain_id=body.strain_id,
         room_id=body.room_id,
         planted_date=body.planted_date,
         untracked_count=body.count,
@@ -313,6 +327,7 @@ async def harvest_plant(plant_id: str, body: HarvestPlantRequest, db: Session = 
 @router.post("/harvests")
 async def create_harvest(body: CreateHarvestRequest, db: Session = Depends(get_db)) -> dict:
     operator = _resolve_operator(db, body.operator_id)
+    _validate_strain_id(db, body.strain_id)
     existing = db.execute(select(Harvest).where(Harvest.name == body.name)).scalar_one_or_none()
     if existing is not None:
         raise HTTPException(
@@ -323,6 +338,7 @@ async def create_harvest(body: CreateHarvestRequest, db: Session = Depends(get_d
         id=_new_id("harvest"),
         name=body.name,
         strain=body.strain,
+        strain_id=body.strain_id,
         source_room_id=body.source_room_id,
         drying_room_id=body.drying_room_id,
         wet_weight_g=0.0,

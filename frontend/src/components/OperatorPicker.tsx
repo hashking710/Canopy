@@ -1,9 +1,25 @@
 import { useState } from "react";
 import { complianceApi } from "../api/complianceClient";
 import { useSubmitState } from "../hooks/useSubmitState";
-import type { Operator, OperatorRole } from "../api/complianceTypes";
+import type { NotificationPreferences, NotificationSeverity, Operator, OperatorRole } from "../api/complianceTypes";
 
 const ROLE_OPTIONS: OperatorRole[] = ["viewer", "operator", "admin"];
+const SEVERITY_OPTIONS: NotificationSeverity[] = ["warning", "critical"];
+
+// A suggestion only — the backend stores whatever's submitted with no server-side
+// role-based defaulting (see routers/operators.py's CreateOperatorRequest). Lets
+// "+ add operator" pre-fill something sensible instead of forcing every new
+// operator to think through notification prefs from a blank slate, while staying
+// fully editable before saving.
+function suggestedNotificationDefaults(role: OperatorRole): NotificationPreferences {
+  if (role === "admin") {
+    return { notify_email: null, notify_on_alerts: true, notify_on_system_errors: true, notify_min_severity: "warning" };
+  }
+  if (role === "operator") {
+    return { notify_email: null, notify_on_alerts: true, notify_on_system_errors: false, notify_min_severity: "critical" };
+  }
+  return { notify_email: null, notify_on_alerts: false, notify_on_system_errors: false, notify_min_severity: "critical" };
+}
 
 function ManageCurrentOperator({
   operator,
@@ -20,7 +36,24 @@ function ManageCurrentOperator({
   const [changingRole, setChangingRole] = useState(false);
   const [rolePin, setRolePin] = useState("");
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
+  const [editingNotifications, setEditingNotifications] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState(operator.notify_email ?? "");
+  const [notifyOnAlerts, setNotifyOnAlerts] = useState(operator.notify_on_alerts);
+  const [notifyOnSystemErrors, setNotifyOnSystemErrors] = useState(operator.notify_on_system_errors);
+  const [notifyMinSeverity, setNotifyMinSeverity] = useState<NotificationSeverity>(operator.notify_min_severity);
   const { submitting, error, run } = useSubmitState();
+
+  const saveNotificationPreferences = () =>
+    run(async () => {
+      const updated = await complianceApi.updateNotificationPreferences(operator.id, {
+        notify_email: notifyEmail || null,
+        notify_on_alerts: notifyOnAlerts,
+        notify_on_system_errors: notifyOnSystemErrors,
+        notify_min_severity: notifyMinSeverity,
+      });
+      onUpdated(updated as Operator);
+      setEditingNotifications(false);
+    });
 
   const resetPin = () =>
     run(async () => {
@@ -62,7 +95,43 @@ function ManageCurrentOperator({
 
   return (
     <div className="operator-manage">
-      {changingRole ? (
+      {editingNotifications ? (
+        <div className="operator-add-form">
+          <input
+            value={notifyEmail}
+            onChange={(e) => setNotifyEmail(e.target.value)}
+            placeholder="email for personal notifications"
+            type="email"
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input type="checkbox" checked={notifyOnAlerts} onChange={(e) => setNotifyOnAlerts(e.target.checked)} />
+            room alerts
+          </label>
+          {notifyOnAlerts && (
+            <select value={notifyMinSeverity} onChange={(e) => setNotifyMinSeverity(e.target.value as NotificationSeverity)}>
+              {SEVERITY_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  min severity: {s}
+                </option>
+              ))}
+            </select>
+          )}
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={notifyOnSystemErrors}
+              onChange={(e) => setNotifyOnSystemErrors(e.target.checked)}
+            />
+            system errors
+          </label>
+          <button className="inline-button" onClick={saveNotificationPreferences} disabled={submitting}>
+            {submitting ? "saving…" : "save"}
+          </button>
+          <button className="inline-button" onClick={() => setEditingNotifications(false)}>
+            cancel
+          </button>
+        </div>
+      ) : changingRole ? (
         <div className="operator-add-form">
           {operator.has_pin && (
             <input
@@ -120,6 +189,9 @@ function ManageCurrentOperator({
           <button className="inline-button" onClick={() => setChangingRole(true)}>
             change role ({operator.role})
           </button>
+          <button className="inline-button" onClick={() => setEditingNotifications(true)}>
+            notifications
+          </button>
           <button className="inline-button" onClick={() => setConfirmingDeactivate(true)}>
             deactivate
           </button>
@@ -152,17 +224,33 @@ export function OperatorPicker({
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
   const [role, setRole] = useState<OperatorRole>("operator");
+  const [notifyPrefs, setNotifyPrefs] = useState<NotificationPreferences>(suggestedNotificationDefaults("operator"));
   const { submitting, error, run } = useSubmitState();
 
   const currentOperator = operators.find((o) => o.id === currentOperatorId) ?? null;
 
+  // Re-suggests notification defaults for the newly picked role — a suggestion the
+  // operator can still freely edit below before saving, not a locked-in rule (see
+  // suggestedNotificationDefaults's own comment).
+  const changeRoleForNewOperator = (nextRole: OperatorRole) => {
+    setRole(nextRole);
+    setNotifyPrefs(suggestedNotificationDefaults(nextRole));
+  };
+
   const submit = () =>
     run(async () => {
-      const created = await complianceApi.createOperator({ name, pin: pin || undefined, role });
+      const created = await complianceApi.createOperator({
+        name, pin: pin || undefined, role,
+        notify_email: notifyPrefs.notify_email || null,
+        notify_on_alerts: notifyPrefs.notify_on_alerts,
+        notify_on_system_errors: notifyPrefs.notify_on_system_errors,
+        notify_min_severity: notifyPrefs.notify_min_severity,
+      });
       onOperatorCreated(created);
       setName("");
       setPin("");
       setRole("operator");
+      setNotifyPrefs(suggestedNotificationDefaults("operator"));
       setAdding(false);
     });
 
@@ -187,13 +275,35 @@ export function OperatorPicker({
         <div className="operator-add-form">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="name" />
           <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN (optional)" type="password" />
-          <select value={role} onChange={(e) => setRole(e.target.value as OperatorRole)}>
+          <select value={role} onChange={(e) => changeRoleForNewOperator(e.target.value as OperatorRole)}>
             {ROLE_OPTIONS.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
             ))}
           </select>
+          <input
+            value={notifyPrefs.notify_email ?? ""}
+            onChange={(e) => setNotifyPrefs({ ...notifyPrefs, notify_email: e.target.value })}
+            placeholder="notification email (optional)"
+            type="email"
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={notifyPrefs.notify_on_alerts}
+              onChange={(e) => setNotifyPrefs({ ...notifyPrefs, notify_on_alerts: e.target.checked })}
+            />
+            room alerts
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={notifyPrefs.notify_on_system_errors}
+              onChange={(e) => setNotifyPrefs({ ...notifyPrefs, notify_on_system_errors: e.target.checked })}
+            />
+            system errors
+          </label>
           <button className="inline-button" onClick={submit} disabled={!name || submitting}>
             {submitting ? "saving…" : "save"}
           </button>

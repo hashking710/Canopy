@@ -20,9 +20,13 @@ vi.mock("../api/complianceClient", () => ({
   },
 }));
 
+const notifyPrefsDefaults = {
+  notify_email: null, notify_on_alerts: false, notify_on_system_errors: false, notify_min_severity: "critical" as const,
+};
+
 const operators: Operator[] = [
-  { id: "op-1", name: "Alex Rivera", role: "admin", has_pin: true },
-  { id: "op-2", name: "Jordan Lee", role: "operator", has_pin: false },
+  { id: "op-1", name: "Alex Rivera", role: "admin", has_pin: true, ...notifyPrefsDefaults },
+  { id: "op-2", name: "Jordan Lee", role: "operator", has_pin: false, ...notifyPrefsDefaults },
 ];
 
 describe("OperatorPicker", () => {
@@ -64,7 +68,10 @@ describe("OperatorPicker", () => {
     await user.type(screen.getByPlaceholderText("name"), "New Tech");
     await user.click(screen.getByText("save"));
 
-    expect(createOperator).toHaveBeenCalledWith({ name: "New Tech", pin: undefined, role: "operator" });
+    expect(createOperator).toHaveBeenCalledWith({
+      name: "New Tech", pin: undefined, role: "operator",
+      notify_email: null, notify_on_alerts: true, notify_on_system_errors: false, notify_min_severity: "critical",
+    });
     expect(onOperatorCreated).toHaveBeenCalledWith({ id: "op-3", name: "New Tech", role: "operator", has_pin: false });
   });
 

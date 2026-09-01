@@ -7,6 +7,9 @@ class CreatePlantBatchRequest(BaseModel):
     name: str
     batch_type: str  # "Seed" | "Clone"
     strain: str
+    # Optional link to the genetics registry (Strain, see compliance_models.py) —
+    # additive on top of the free-text strain field above, not a replacement for it.
+    strain_id: str | None = None
     room_id: str
     planted_date: date
     count: int = Field(gt=0)
@@ -45,6 +48,7 @@ class HarvestPlantRequest(BaseModel):
 class CreateHarvestRequest(BaseModel):
     name: str
     strain: str
+    strain_id: str | None = None
     source_room_id: str
     drying_room_id: str | None = None
     operator_id: str

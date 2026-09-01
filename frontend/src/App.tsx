@@ -4,6 +4,7 @@ import { Compliance } from "./pages/Compliance";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { FacilityOverview } from "./pages/FacilityOverview";
+import { Genetics } from "./pages/Genetics";
 import { License } from "./pages/License";
 import { MasterSiteRooms } from "./pages/MasterSiteRooms";
 import { MasterSites } from "./pages/MasterSites";
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/plants" element={<PlantsBatches />} />
           <Route path="/plants/harvests" element={<PlantsHarvests />} />
           <Route path="/plants/packages" element={<PlantsPackages />} />
+          <Route path="/genetics" element={<Genetics />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/master" element={<MasterSites />} />
           <Route path="/master/:siteId" element={<MasterSiteRooms />} />

@@ -10,6 +10,10 @@ const testOperator: Operator = {
   name: "Test Operator",
   role: "admin",
   has_pin: false,
+  notify_email: null,
+  notify_on_alerts: false,
+  notify_on_system_errors: false,
+  notify_min_severity: "critical",
 };
 
 const { getAvailableAdapters, discoverAdapterDevices } = vi.hoisted(() => ({

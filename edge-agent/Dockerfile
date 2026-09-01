@@ -47,6 +47,12 @@ COPY plugins/canopy-adapter-rainmachine /plugins/canopy-adapter-rainmachine
 # docstring for exactly which operations are implemented against a confirmed
 # request shape vs. left honestly unimplemented.
 COPY plugins/canopy-compliancesync-metrc /plugins/canopy-compliancesync-metrc
+# Menu-sync plugins — inert unless CANOPY_MENU_SYNC is set to one of them. The mock
+# one has zero external dependency and is a real, usable "generic POS" out of the
+# box; the Weedmaps one needs CANOPY_WEEDMAPS_API_KEY (see its own docstring for its
+# unverified-against-a-real-account caveat).
+COPY plugins/canopy-menusync-mock /plugins/canopy-menusync-mock
+COPY plugins/canopy-menusync-weedmaps /plugins/canopy-menusync-weedmaps
 
 RUN pip install --no-cache-dir . \
     /plugins/canopy-adapter-ac-infinity \
@@ -66,7 +72,9 @@ RUN pip install --no-cache-dir . \
     /plugins/canopy-adapter-tuya \
     /plugins/canopy-adapter-rachio \
     /plugins/canopy-adapter-rainmachine \
-    /plugins/canopy-compliancesync-metrc
+    /plugins/canopy-compliancesync-metrc \
+    /plugins/canopy-menusync-mock \
+    /plugins/canopy-menusync-weedmaps
 
 EXPOSE 8000
 

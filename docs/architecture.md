@@ -1138,6 +1138,107 @@ first hardening pass already covered.
   exercised over real HTTP in `tests/conftest.py`'s lightweight test app, which never
   runs the real lifespan.
 
+## Genetics registry, POS/menu sync, and per-operator notifications (built)
+
+Three related additions: structured genetics data to actually feed a menu with,
+a pluggable POS/menu-sync architecture to push it (and current inventory) out to,
+and a way for individual operators to get personally notified instead of only
+whoever's watching the shared facility-wide channels.
+
+- **Genetics registry (`Strain`, built)**: `strain` was previously a bare free-text
+  field on `PlantBatch`/`Plant`/`Harvest` — enough for METRC-style compliance, not
+  enough to drive a real menu listing. `compliance_models.Strain` (migration
+  `25f2937dc1eb`) adds `name`, `lineage`, `strain_type` (indica/sativa/hybrid/
+  unknown), and typical THC%/CBD%. Linked via a new, nullable `strain_id` FK on
+  `PlantBatch`/`Plant`/`Harvest` — **additive only**: the existing free-text `strain`
+  columns are untouched, no backfill, no risk to existing compliance records: a
+  facility that doesn't care about the registry keeps typing strain names exactly as
+  before. `routers/strains.py` is plain CRUD, role-gated at `role >= "operator"`
+  (routine catalog data, same tier as rooms/alert rules) via the same
+  `resolve_operator_with_role()` helper those routers use. `routers/compliance.py`'s
+  `create_plant_batch`/`create_harvest` accept an optional `strain_id` and validate
+  it resolves to a real, active `Strain` (404 if not) before persisting.
+- **Menu sync — a new plugin category (`menu_sync`, built)**: `menu_sync/{base,
+  null_sync,registry}.py` mirrors `compliance_sync/`'s shape exactly (same
+  `plugin_name`/`config_schema`/`required_env_vars` class vars, same entry-point
+  discovery via `canopy.menu_sync`, same "null is the only built-in, real ones are
+  separate installed packages" default) — but a fundamentally different interaction
+  pattern: compliance sync pushes individual lifecycle *events*, menu sync pushes a
+  full point-in-time *snapshot* on an interval, since a menu is "what's for sale
+  right now," not an event log. `services/menu_data.py`'s `build_menu_items()`
+  assembles that snapshot from every active `Package`: genetics from the linked
+  `Strain` if the parent `Harvest` has one (else just the harvest's free-text strain
+  name), potency from the package's own most recent passed lab test, falling back to
+  the strain's typical THC/CBD if no package-level test exists yet.
+  `services/menu_sync_task.py`'s `menu_sync_forever()` runs this on an interval
+  (`CANOPY_MENU_SYNC_INTERVAL_SECONDS`, default 900s) alongside the other background
+  tasks (added to `app.state.background_tasks`, so `/api/health` covers it too);
+  `routers/menu_sync.py` exposes status (active/available providers, last result) and
+  a manual "sync now" trigger, role-gated the same as strains. Two shipped plugin
+  packages: `canopy-menusync-mock` (a real, dependency-free reference implementation
+  — the "generic POS" the user can point at today without any vendor account) and
+  `canopy-menusync-weedmaps` (a real HTTP client against Weedmaps' Menu API — built
+  for real, but its exact request shape is **unverified against a live account**,
+  unlike `MetrcComplianceSync`'s shapes which are each cited against a real reference
+  client; flagged in its own module docstring rather than presented as confirmed).
+  Both plugins' `required_env_vars` feed into `routers/secrets.py`'s existing
+  `_known_secret_keys()` aggregation, so their credentials show up in the Settings
+  page's existing credentials card automatically — no separate integrations UI
+  needed.
+- **Per-operator notification preferences (built)**: notification channels
+  (webhook/email/Discord, see the production-readiness section above) are
+  facility-wide only — one shared target for the whole team. `Operator` gains
+  `notify_email`, `notify_on_alerts`, `notify_on_system_errors`, `notify_min_severity`
+  (migration `fa5784bdf469`, all safely off by default for existing operators — a new
+  opt-in capability, not a new restriction, unlike `role`'s own migration). Backend
+  is deliberately dumb about defaults: `routers/operators.py` just persists whatever's
+  submitted, with no server-side role-based defaulting — a role-based *suggestion*
+  (admin → alerts+errors on, min=warning; operator → alerts on, min=critical; viewer →
+  off) lives only in `OperatorPicker.tsx`'s "+ add operator" form, fully overridable
+  before saving. `PUT /api/operators/{id}/notification-preferences` is self-service —
+  no role gate beyond being a real, active operator (mirrors `reset_operator_pin`'s
+  own simplicity), since this is personal preference data, not a privileged action on
+  someone else. Delivery reuses the facility's existing SMTP config
+  (`notifications/email.py`'s `send_personal_email()`, parameterized on recipient
+  instead of the single `CANOPY_ALERT_EMAIL_TO`) addressed to the individual operator
+  instead — "configure SMTP once for the facility, then anyone can subscribe
+  personally," not a second SMTP surface. `services/personal_notify.py` filters
+  candidates by opt-in flag and the event's severity against each operator's own
+  minimum, called from `services/alerts.py`'s `dispatch_alert_notifications()` and
+  `services/error_reporting.py`'s `report_system_error()` right after the existing
+  facility-wide channel fan-out.
+  - **Robustness bug caught and fixed via live Docker verification, not just unit
+    tests**: both call sites above are invoked from *every* background task's own
+    exception handler (poller/retention/backup) — `report_system_error()` in
+    particular is documented as "must never raise," since an uncaught exception
+    there propagates straight out of the caller's `except` block and permanently
+    kills that task's whole `while True` loop (`/api/health` then reports it as
+    `"running": false` forever, no auto-restart). The initial personal-notify wiring
+    called `notify_operators_of_*()` unguarded — reproduced live by restarting the
+    container cold: the *poller* task (unrelated to menu sync) died on its very
+    first cycle, almost certainly from a transient SQLite write collision at startup
+    across now five concurrent background tasks. Fixed by wrapping both personal-
+    notify calls in the same try/except-and-log pattern the facility-wide channel
+    loop right next to them already uses — confirmed via `services/personal_notify.py`
+    opening its own short-lived session by default (`db: Session | None = None`,
+    matching `retention.py`'s own "`_forever()` opens a session, the real logic
+    takes one as a parameter" split, for testability). Regression tests
+    (`test_report_system_error_survives_personal_notify_failing`,
+    `test_dispatch_alert_notifications_survives_personal_notify_failing`) simulate
+    the failure directly; verified live afterward with five consecutive cold
+    container restarts, all healthy.
+  - **Test-isolation gap caught in the same pass**: `personal_notify.py`'s default
+    session path (`canopy_agent.db.SessionLocal()`) is the *real*, on-disk
+    `data/canopy.db` engine — every other test in this suite either avoids it
+    entirely (the `client`/`db_session` fixtures build their own isolated in-memory
+    engine) or never actually exercises code that touches it. `test_error_reporting.py`
+    calling `report_system_error()` directly was the first path that did, meaning
+    test runs were silently reading (and would depend on) whatever operators exist in
+    a developer's real local database. Fixed at the root: `tests/conftest.py` now
+    sets `CANOPY_DATA_DIR` to a fresh temp directory *before* `canopy_agent.db` (or
+    anything importing it) is first imported, isolating that module-level engine for
+    the whole test session — a general test-hygiene fix, not specific to this feature.
+
 ## Phase 4 — productization
 
 - Custom Raspberry Pi OS image (via `pi-gen`) with the edge agent preinstalled as a

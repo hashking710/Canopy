@@ -25,13 +25,14 @@ if sys.platform == "win32":
 from canopy_agent.auth import require_token
 from canopy_agent.db import SessionLocal
 from canopy_agent.migrate import upgrade_to_head
-from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, operators, rooms, secrets as secrets_router, ws
+from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, menu_sync as menu_sync_router, operators, rooms, secrets as secrets_router, strains as strains_router, ws
 from canopy_agent.seed import seed
 from canopy_agent.seed_compliance import seed_compliance
 from canopy_agent.services.audit_relay import subscribe_relay_forever
 from canopy_agent.services.backup import backup_forever
 from canopy_agent.services.demo_reset import demo_reset_forever, reset_demo_data
 from canopy_agent.services.error_reporting import report_system_error
+from canopy_agent.services.menu_sync_task import menu_sync_forever
 from canopy_agent.services.poller import poll_forever
 from canopy_agent.services.rate_limit import RateLimitMiddleware
 from canopy_agent.services.retention import retention_forever
@@ -89,6 +90,7 @@ async def lifespan(app: FastAPI):
         "poller": asyncio.create_task(poll_forever()),
         "retention": asyncio.create_task(retention_forever()),
         "audit_relay": asyncio.create_task(subscribe_relay_forever()),
+        "menu_sync": asyncio.create_task(menu_sync_forever()),
     }
     if DEMO_MODE:
         named_tasks["demo_reset"] = asyncio.create_task(demo_reset_forever())
@@ -152,4 +154,6 @@ app.include_router(alerts.router, dependencies=[Depends(require_token)])
 app.include_router(license_router.router, dependencies=[Depends(require_token)])
 app.include_router(backup_router.router, dependencies=[Depends(require_token)])
 app.include_router(secrets_router.router, dependencies=[Depends(require_token)])
+app.include_router(strains_router.router, dependencies=[Depends(require_token)])
+app.include_router(menu_sync_router.router, dependencies=[Depends(require_token)])
 app.include_router(health_router.router)  # no require_token — see health.py's own docstring

@@ -5,14 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
 import { TIMEZONE_KEY } from "../hooks/useSettings";
 
-const { getBackupStatus, runBackupNow, getSecrets, setSecret, clearSecret, getOperators } = vi.hoisted(() => ({
-  getBackupStatus: vi.fn(),
-  runBackupNow: vi.fn(),
-  getSecrets: vi.fn(),
-  setSecret: vi.fn(),
-  clearSecret: vi.fn(),
-  getOperators: vi.fn(),
-}));
+const { getBackupStatus, runBackupNow, getSecrets, setSecret, clearSecret, getOperators, getMenuSyncStatus, runMenuSyncNow } =
+  vi.hoisted(() => ({
+    getBackupStatus: vi.fn(),
+    runBackupNow: vi.fn(),
+    getSecrets: vi.fn(),
+    setSecret: vi.fn(),
+    clearSecret: vi.fn(),
+    getOperators: vi.fn(),
+    getMenuSyncStatus: vi.fn(),
+    runMenuSyncNow: vi.fn(),
+  }));
 
 vi.mock("../api/client", () => ({
   api: {
@@ -21,6 +24,8 @@ vi.mock("../api/client", () => ({
     getSecrets: (...args: unknown[]) => getSecrets(...args),
     setSecret: (...args: unknown[]) => setSecret(...args),
     clearSecret: (...args: unknown[]) => clearSecret(...args),
+    getMenuSyncStatus: (...args: unknown[]) => getMenuSyncStatus(...args),
+    runMenuSyncNow: (...args: unknown[]) => runMenuSyncNow(...args),
   },
 }));
 
@@ -51,6 +56,13 @@ describe("Settings", () => {
     getBackupStatus.mockResolvedValue({ count: 0, latest: null, backups: [] });
     getSecrets.mockResolvedValue([]);
     getOperators.mockResolvedValue([{ id: "op-1", name: "Admin Operator", role: "admin", has_pin: false }]);
+    getMenuSyncStatus.mockResolvedValue({
+      active_provider: "null",
+      available_providers: [{ type: "null", plugin_name: "None (built-in)", plugin_description: "" }],
+      last_synced_at: null,
+      last_result: {},
+      last_error: null,
+    });
   });
 
   afterEach(() => {
@@ -118,6 +130,57 @@ describe("Settings", () => {
     expect(await screen.findByText(/1 kept/)).toBeInTheDocument();
   });
 
+  describe("menu sync", () => {
+    it("shows the active provider and that it has never synced", async () => {
+      renderPage();
+      expect(await screen.findByText(/None \(built-in\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Never synced yet/)).toBeInTheDocument();
+    });
+
+    it("shows the last sync result once one exists", async () => {
+      getMenuSyncStatus.mockResolvedValue({
+        active_provider: "mock",
+        available_providers: [{ type: "mock", plugin_name: "Mock POS/Menu (testing)", plugin_description: "" }],
+        last_synced_at: "2026-08-01T12:00:00Z",
+        last_result: { pushed: 3, skipped: 1 },
+        last_error: null,
+      });
+      renderPage();
+      expect(await screen.findByText(/3 pushed, 1 skipped/)).toBeInTheDocument();
+    });
+
+    it("shows the last sync error, if any", async () => {
+      getMenuSyncStatus.mockResolvedValue({
+        active_provider: "weedmaps",
+        available_providers: [{ type: "weedmaps", plugin_name: "Weedmaps", plugin_description: "" }],
+        last_synced_at: null,
+        last_result: {},
+        last_error: "CANOPY_WEEDMAPS_API_KEY is not set",
+      });
+      renderPage();
+      expect(await screen.findByText(/CANOPY_WEEDMAPS_API_KEY is not set/)).toBeInTheDocument();
+    });
+
+    it("triggers a sync and refreshes the status on click", async () => {
+      const user = userEvent.setup();
+      runMenuSyncNow.mockResolvedValue({ pushed: 2, skipped: 0 });
+      renderPage();
+      await screen.findAllByText(/Admin Operator/); // operator pickers finished loading
+
+      getMenuSyncStatus.mockResolvedValue({
+        active_provider: "null",
+        available_providers: [{ type: "null", plugin_name: "None (built-in)", plugin_description: "" }],
+        last_synced_at: "2026-08-01T12:05:00Z",
+        last_result: { pushed: 2, skipped: 0 },
+        last_error: null,
+      });
+      await user.click(screen.getByText("sync now"));
+
+      await waitFor(() => expect(runMenuSyncNow).toHaveBeenCalledWith("op-1"));
+      expect(await screen.findByText(/2 pushed, 0 skipped/)).toBeInTheDocument();
+    });
+  });
+
   describe("credentials", () => {
     const goveeSecret = {
       key: "CANOPY_GOVEE_API_KEY",
@@ -155,7 +218,7 @@ describe("Settings", () => {
       setSecret.mockResolvedValue({ key: goveeSecret.key, is_set: true });
       renderPage();
       await screen.findByText("CANOPY_GOVEE_API_KEY");
-      await screen.findByText(/Admin Operator/); // operator picker finished loading
+      await screen.findAllByText(/Admin Operator/); // both operator pickers (menu sync + credentials) finished loading
 
       getSecrets.mockResolvedValue([{ ...goveeSecret, is_set: true, set_via_dashboard: true }]);
       await user.type(screen.getByPlaceholderText("not set"), "my-real-key");
@@ -173,7 +236,7 @@ describe("Settings", () => {
       clearSecret.mockResolvedValue({ key: goveeSecret.key, is_set: false });
       renderPage();
       await screen.findByText("clear");
-      await screen.findByText(/Admin Operator/);
+      await screen.findAllByText(/Admin Operator/);
 
       getSecrets.mockResolvedValue([goveeSecret]);
       await user.click(screen.getByText("clear"));
@@ -191,7 +254,7 @@ describe("Settings", () => {
       // getOperators and getSecrets resolve independently — this confirms the
       // operator picker has actually settled into its empty state too, not just
       // that the secrets list has rendered, before acting on the form.
-      await screen.findByText("no operators registered");
+      await screen.findAllByText("no operators registered");
 
       await user.type(screen.getByPlaceholderText("not set"), "my-real-key");
       await user.click(screen.getByText("save"));

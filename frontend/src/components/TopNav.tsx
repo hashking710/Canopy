@@ -20,6 +20,9 @@ export function TopNav() {
         <NavLink to="/compliance" className={({ isActive }) => (isActive ? "active" : "")}>
           Compliance
         </NavLink>
+        <NavLink to="/genetics" className={({ isActive }) => (isActive ? "active" : "")}>
+          Genetics
+        </NavLink>
         <NavLink to="/master" className={({ isActive }) => (isActive ? "active" : "")}>
           Master control panel
         </NavLink>

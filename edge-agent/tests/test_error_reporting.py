@@ -97,6 +97,22 @@ async def test_report_system_error_survives_one_channel_failing(monkeypatch):
     assert delivered[0]["source"] == "poller"
 
 
+async def test_report_system_error_survives_personal_notify_failing(monkeypatch):
+    """Regression test: report_system_error is called from every background task's
+    own except block (poller.py, retention.py, backup.py) — an uncaught exception
+    here would propagate out of that except block and kill the calling task's
+    entire while-True loop permanently (task.done() becomes True with no retry).
+    A transient failure in the personal-notification path (e.g. the DB being
+    momentarily locked by another concurrent background task at startup) must
+    never be able to do that."""
+
+    async def _boom(payload):
+        raise RuntimeError("simulated transient DB failure")
+
+    monkeypatch.setattr("canopy_agent.services.error_reporting.notify_operators_of_system_error", _boom)
+    await report_system_error("poller", "poll cycle failed")  # must not raise
+
+
 # ---- email subject line — type-aware, plant alert vs. system error ------------------
 
 

@@ -3,6 +3,7 @@ import traceback
 from datetime import datetime, timezone
 
 from canopy_agent.notifications.registry import get_active_channels
+from canopy_agent.services.personal_notify import notify_operators_of_system_error
 
 logger = logging.getLogger("canopy_agent.error_reporting")
 
@@ -44,3 +45,12 @@ async def report_system_error(source: str, message: str, exc: BaseException | No
             logger.exception(
                 "notification channel '%s' failed to deliver a system-error report", channel.plugin_name
             )
+    try:
+        await notify_operators_of_system_error(payload)
+    except Exception:
+        # Every caller of report_system_error() relies on it never raising (it's
+        # called from background-task except blocks and a global exception
+        # handler, where an uncaught exception here would kill the caller's own
+        # loop entirely — a personal-notification failure must never do that,
+        # same "never fatal" contract the channel loop above already has).
+        logger.exception("failed to notify operators personally of a system error")

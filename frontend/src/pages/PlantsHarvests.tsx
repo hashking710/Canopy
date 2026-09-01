@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { complianceApi } from "../api/complianceClient";
 import type { Harvest, HarvestWeightLog, Operator } from "../api/complianceTypes";
+import { strainsApi } from "../api/strainsClient";
+import type { Strain } from "../api/strainsTypes";
 import { Badge } from "../components/Badge";
 import { Card } from "../components/Card";
 import { OperatorPicker } from "../components/OperatorPicker";
@@ -58,18 +60,29 @@ function HarvestsTable({ harvests, rooms }: { harvests: Harvest[]; rooms: Room[]
 
 function CreateHarvestForm({
   rooms,
+  strains,
   currentOperator,
   onCreated,
 }: {
   rooms: Room[];
+  strains: Strain[];
   currentOperator: Operator | null;
   onCreated: () => void;
 }) {
   const [name, setName] = useState("");
   const [strain, setStrain] = useState("");
+  const [strainId, setStrainId] = useState("");
   const [sourceRoomId, setSourceRoomId] = useState("");
   const [dryingRoomId, setDryingRoomId] = useState("");
   const { submitting, error, success, run } = useSubmitState();
+
+  // See PlantsBatches.tsx's CreateBatchForm for why this is additive, not a
+  // replacement for the free-text field.
+  const pickRegistryStrain = (id: string) => {
+    setStrainId(id);
+    const picked = strains.find((s) => s.id === id);
+    if (picked) setStrain(picked.name);
+  };
 
   const submit = () =>
     run(async () => {
@@ -77,12 +90,14 @@ function CreateHarvestForm({
       await complianceApi.createHarvest({
         name,
         strain,
+        strain_id: strainId || null,
         source_room_id: sourceRoomId,
         drying_room_id: dryingRoomId || undefined,
         operator_id: currentOperator.id,
       });
       setName("");
       setStrain("");
+      setStrainId("");
       setSourceRoomId("");
       setDryingRoomId("");
       onCreated();
@@ -96,9 +111,28 @@ function CreateHarvestForm({
           harvest name
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="must be unique" />
         </label>
+        {strains.length > 0 && (
+          <label>
+            from registry (optional)
+            <select value={strainId} onChange={(e) => pickRegistryStrain(e.target.value)}>
+              <option value="">type strain manually…</option>
+              {strains.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           strain
-          <input value={strain} onChange={(e) => setStrain(e.target.value)} />
+          <input
+            value={strain}
+            onChange={(e) => {
+              setStrain(e.target.value);
+              setStrainId("");
+            }}
+          />
         </label>
         <label>
           source room
@@ -411,11 +445,13 @@ export function PlantsHarvests() {
   } = useCurrentOperator();
 
   const [harvests, setHarvests] = useState<Harvest[] | null>(null);
+  const [strains, setStrains] = useState<Strain[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refresh = () => {
     complianceApi.getHarvests().then(setHarvests).catch((err) => setError(errorMessage(err)));
+    strainsApi.getStrains().then(setStrains).catch(() => setStrains([]));
     setRefreshKey((k) => k + 1);
   };
 
@@ -447,7 +483,7 @@ export function PlantsHarvests() {
       <div className="section-label">Harvests</div>
       <Card>
         {harvests ? <HarvestsTable harvests={harvests} rooms={rooms} /> : <p className="stat-label">Loading…</p>}
-        <CreateHarvestForm rooms={rooms} currentOperator={currentOperator} onCreated={refresh} />
+        <CreateHarvestForm rooms={rooms} strains={strains} currentOperator={currentOperator} onCreated={refresh} />
         <WeighHarvestForm harvests={harvests ?? []} rooms={rooms} currentOperator={currentOperator} onDone={refresh} />
         <WeighHistory harvests={harvests ?? []} rooms={rooms} refreshKey={refreshKey} />
         <FinishHarvestForm harvests={harvests ?? []} currentOperator={currentOperator} onDone={refresh} />

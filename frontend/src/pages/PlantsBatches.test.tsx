@@ -28,7 +28,15 @@ vi.mock("../api/client", () => ({
   api: { getRooms: (...args: unknown[]) => getRooms(...args) },
 }));
 
-const operator: Operator = { id: "op-1", name: "Alex Rivera", role: "operator", has_pin: false };
+const { getStrains } = vi.hoisted(() => ({ getStrains: vi.fn() }));
+vi.mock("../api/strainsClient", () => ({
+  strainsApi: { getStrains: (...args: unknown[]) => getStrains(...args) },
+}));
+
+const operator: Operator = {
+  id: "op-1", name: "Alex Rivera", role: "operator", has_pin: false,
+  notify_email: null, notify_on_alerts: false, notify_on_system_errors: false, notify_min_severity: "critical",
+};
 const plant: Plant = {
   id: "tag-001",
   batch_id: null,
@@ -47,6 +55,7 @@ describe("PlantsBatches — destroy plant confirmation", () => {
     getHarvests.mockResolvedValue([]);
     getOperators.mockResolvedValue([operator]);
     getRooms.mockResolvedValue([]);
+    getStrains.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -105,6 +114,7 @@ describe("PlantsBatches — plant search", () => {
       { id: "room-1", title: "Greenhouse A" },
       { id: "room-2", title: "Greenhouse B" },
     ]);
+    getStrains.mockResolvedValue([]);
   });
 
   afterEach(() => {

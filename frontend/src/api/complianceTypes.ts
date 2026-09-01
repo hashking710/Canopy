@@ -3,6 +3,7 @@ export interface PlantBatch {
   name: string;
   batch_type: string;
   strain: string;
+  strain_id: string | null;
   room_id: string;
   planted_date: string;
   untracked_count: number;
@@ -28,6 +29,7 @@ export interface Harvest {
   id: string;
   name: string;
   strain: string;
+  strain_id: string | null;
   source_room_id: string;
   drying_room_id: string | null;
   wet_weight_g: number;
@@ -101,6 +103,7 @@ export interface CreatePlantBatchBody {
   name: string;
   batch_type: "Seed" | "Clone";
   strain: string;
+  strain_id?: string | null;
   room_id: string;
   planted_date: string;
   count: number;
@@ -139,6 +142,7 @@ export interface HarvestPlantBody {
 export interface CreateHarvestBody {
   name: string;
   strain: string;
+  strain_id?: string | null;
   source_room_id: string;
   drying_room_id?: string;
   operator_id: string;
@@ -185,12 +189,24 @@ export interface WasteEvent {
 }
 
 export type OperatorRole = "viewer" | "operator" | "admin";
+export type NotificationSeverity = "warning" | "critical";
 
 export interface Operator {
   id: string;
   name: string;
   role: OperatorRole;
   has_pin: boolean;
+  notify_email: string | null;
+  notify_on_alerts: boolean;
+  notify_on_system_errors: boolean;
+  notify_min_severity: NotificationSeverity;
+}
+
+export interface NotificationPreferences {
+  notify_email: string | null;
+  notify_on_alerts: boolean;
+  notify_on_system_errors: boolean;
+  notify_min_severity: NotificationSeverity;
 }
 
 export interface AuditLogEntry {

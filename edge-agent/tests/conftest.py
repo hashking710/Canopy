@@ -1,3 +1,19 @@
+import os
+import tempfile
+
+# Must run before any canopy_agent module is imported — canopy_agent.db reads
+# CANOPY_DATA_DIR (and binds a real, module-level SQLAlchemy engine to
+# <data dir>/canopy.db) at *import* time, not per-call. Most of this test suite
+# never touches that real engine at all (client/db_session fixtures below build
+# their own isolated in-memory SQLite engine instead) — but a few code paths
+# (e.g. services/personal_notify.py's default `db=None` behavior, exercised via
+# services/error_reporting.py's report_system_error() in test_error_reporting.py)
+# open a session via canopy_agent.db.SessionLocal() directly. Without this, those
+# tests would silently read from — and pytest runs would depend on the contents
+# of — whatever real, on-disk edge-agent/data/canopy.db a developer happens to
+# have from actually running the app locally.
+os.environ["CANOPY_DATA_DIR"] = tempfile.mkdtemp(prefix="canopy-test-data-")
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -8,7 +24,7 @@ from sqlalchemy.pool import StaticPool
 from canopy_agent import models  # noqa: F401  # registers the `rooms` table compliance FKs reference
 from canopy_agent.db import Base
 from canopy_agent.deps import get_db
-from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, operators, rooms, secrets as secrets_router
+from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, menu_sync as menu_sync_router, operators, rooms, secrets as secrets_router, strains as strains_router
 
 
 @pytest.fixture()
@@ -39,6 +55,8 @@ def client():
     app.include_router(backup_router.router)
     app.include_router(secrets_router.router)
     app.include_router(health_router.router)
+    app.include_router(strains_router.router)
+    app.include_router(menu_sync_router.router)
     app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as test_client:
@@ -76,6 +94,21 @@ def _reset_notification_channel_cache():
     registry._instances = None
     yield
     registry._instances = None
+
+
+@pytest.fixture(autouse=True)
+def _reset_menu_sync_registry():
+    """menu_sync/registry.py caches a single MenuSync instance for the whole
+    process lifetime (same reasoning as compliance_sync/registry.py) — reset it
+    so a test that sets CANOPY_MENU_SYNC doesn't leak a stale instance/factory
+    map into whatever test runs next."""
+    import canopy_agent.menu_sync.registry as registry
+
+    registry._instance = None
+    registry._factories = None
+    yield
+    registry._instance = None
+    registry._factories = None
 
 
 @pytest.fixture()

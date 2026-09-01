@@ -11,6 +11,7 @@ import type {
   HarvestWeightLog,
   LabTest,
   MovePlantBody,
+  NotificationPreferences,
   Operator,
   OperatorRole,
   Package,
@@ -37,6 +38,19 @@ async function getJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(formatErrorDetail(detail.detail, `${path} -> ${res.status}`));
+  }
+  return res.json() as Promise<T>;
+}
+
+async function putJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
@@ -88,8 +102,10 @@ export const complianceApi = {
   setStateRules: (body: { state_code: string; operator_id: string }) =>
     postJson<StateRulesResponse>("/api/compliance/state-rules", body),
   getOperators: () => getJson<Operator[]>("/api/operators"),
-  createOperator: (body: { name: string; pin?: string; role?: OperatorRole }) =>
+  createOperator: (body: { name: string; pin?: string; role?: OperatorRole } & Partial<NotificationPreferences>) =>
     postJson<Operator>("/api/operators", body),
+  updateNotificationPreferences: (operatorId: string, prefs: NotificationPreferences) =>
+    putJson<Operator>(`/api/operators/${operatorId}/notification-preferences`, prefs),
   setOperatorRole: (operatorId: string, role: OperatorRole, actingOperatorId: string, pin?: string) =>
     postJson<Operator>(`/api/operators/${operatorId}/role`, {
       role,

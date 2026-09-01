@@ -113,6 +113,20 @@ export interface SecretInfo {
   set_via_dashboard: boolean;
 }
 
+export interface MenuSyncProvider {
+  type: string;
+  plugin_name: string;
+  plugin_description: string;
+}
+
+export interface MenuSyncStatus {
+  active_provider: string;
+  available_providers: MenuSyncProvider[];
+  last_synced_at: string | null;
+  last_result: { pushed?: number; skipped?: number } & Record<string, unknown>;
+  last_error: string | null;
+}
+
 export const api = {
   getFacility: () => getJson<Room>("/api/facility"),
   createFacility: (body: CreateFacilityBody) => sendJson<Room>("POST", "/api/facility", body),
@@ -144,6 +158,13 @@ export const api = {
     sendJson<{ key: string; is_set: boolean }>("PUT", `/api/secrets/${key}`, { value, operator_id: operatorId, pin }),
   clearSecret: (key: string, operatorId: string, pin?: string) =>
     sendJson<{ key: string; is_set: boolean }>("DELETE", `/api/secrets/${key}`, { operator_id: operatorId, pin }),
+  getMenuSyncStatus: () => getJson<MenuSyncStatus>("/api/menu-sync/status"),
+  // Menu sync is role-gated (role >= "operator", see routers/menu_sync.py).
+  runMenuSyncNow: (operatorId: string) =>
+    sendJson<{ pushed: number; skipped: number }>(
+      "POST",
+      `/api/menu-sync/run?operator_id=${encodeURIComponent(operatorId)}`,
+    ),
 };
 
 export function connectLiveUpdates(

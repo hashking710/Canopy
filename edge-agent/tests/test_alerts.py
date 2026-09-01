@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from canopy_agent.models import AlertEvent, AlertRule, Room
-from canopy_agent.services.alerts import evaluate_alerts_for_room
+from canopy_agent.services.alerts import dispatch_alert_notifications, evaluate_alerts_for_room
 
 
 def make_room(db_session, room_id="greenhouse-a"):
@@ -141,3 +141,26 @@ def test_acknowledge_alert_event_rejects_viewer_role(client, operator_id):
     viewer = client.post("/api/operators", json={"name": "Just Looking", "role": "viewer"}).json()
     resp = client.post("/api/alert-events/1/acknowledge", json={"operator_id": viewer["id"]})
     assert resp.status_code == 403
+
+
+async def test_dispatch_alert_notifications_survives_personal_notify_failing(db_session, monkeypatch):
+    """Regression test: dispatch_alert_notifications is called from the poller's
+    main write path (poller.py's _write_room_reading) — an uncaught exception here
+    would propagate up into poll_once()/poll_forever()'s exception handling same as
+    any other poll-cycle failure, but a transient failure in the personal-
+    notification path specifically must be swallowed at its own call site, same as
+    a broken facility-wide channel already is (see the loop just above it in
+    services/alerts.py)."""
+
+    async def _boom(payload):
+        raise RuntimeError("simulated transient DB failure")
+
+    monkeypatch.setattr("canopy_agent.services.alerts.notify_operators_of_alert", _boom)
+
+    room = make_room(db_session)
+    db_session.add(AlertRule(id="rule-1", room_id=room.id, metric="temp_f", condition="gt", threshold=90.0))
+    db_session.commit()
+    opened = evaluate_alerts_for_room(db_session, room.id, {"temp_f": 95.0})
+    db_session.commit()
+
+    await dispatch_alert_notifications(opened, room.id)  # must not raise

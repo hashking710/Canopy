@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { complianceApi } from "../api/complianceClient";
 import type { Harvest, Operator, Plant, PlantBatch } from "../api/complianceTypes";
+import { strainsApi } from "../api/strainsClient";
+import type { Strain } from "../api/strainsTypes";
 import { Badge } from "../components/Badge";
 import { Card } from "../components/Card";
 import { OperatorPicker } from "../components/OperatorPicker";
@@ -69,20 +71,33 @@ function BatchesTable({ batches, rooms }: { batches: PlantBatch[]; rooms: Room[]
 
 function CreateBatchForm({
   rooms,
+  strains,
   currentOperator,
   onCreated,
 }: {
   rooms: Room[];
+  strains: Strain[];
   currentOperator: Operator | null;
   onCreated: () => void;
 }) {
   const [name, setName] = useState("");
   const [batchType, setBatchType] = useState<"Seed" | "Clone">("Clone");
   const [strain, setStrain] = useState("");
+  const [strainId, setStrainId] = useState("");
   const [roomId, setRoomId] = useState("");
   const [plantedDate, setPlantedDate] = useState(todayIso());
   const [count, setCount] = useState("");
   const { submitting, error, success, run } = useSubmitState();
+
+  // Picking a registry strain auto-fills the free-text field, which stays what's
+  // actually required/authoritative (METRC's own model has no registry concept) —
+  // strain_id is purely an additional, optional link for genetics/potency roll-up
+  // and menu sync (see docs/architecture.md).
+  const pickRegistryStrain = (id: string) => {
+    setStrainId(id);
+    const picked = strains.find((s) => s.id === id);
+    if (picked) setStrain(picked.name);
+  };
 
   const submit = () =>
     run(async () => {
@@ -91,6 +106,7 @@ function CreateBatchForm({
         name,
         batch_type: batchType,
         strain,
+        strain_id: strainId || null,
         room_id: roomId,
         planted_date: plantedDate,
         count: Number(count),
@@ -98,6 +114,7 @@ function CreateBatchForm({
       });
       setName("");
       setStrain("");
+      setStrainId("");
       setRoomId("");
       setCount("");
       onCreated();
@@ -116,9 +133,29 @@ function CreateBatchForm({
           <option value="Seed">Seed</option>
         </select>
       </label>
+      {strains.length > 0 && (
+        <label>
+          from registry (optional)
+          <select value={strainId} onChange={(e) => pickRegistryStrain(e.target.value)}>
+            <option value="">type strain manually…</option>
+            {strains.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label>
         strain
-        <input value={strain} onChange={(e) => setStrain(e.target.value)} placeholder="e.g. GMO" />
+        <input
+          value={strain}
+          onChange={(e) => {
+            setStrain(e.target.value);
+            setStrainId("");
+          }}
+          placeholder="e.g. GMO"
+        />
       </label>
       <label>
         room
@@ -557,6 +594,7 @@ export function PlantsBatches() {
   const [batches, setBatches] = useState<PlantBatch[] | null>(null);
   const [plants, setPlants] = useState<Plant[] | null>(null);
   const [harvests, setHarvests] = useState<Harvest[] | null>(null);
+  const [strains, setStrains] = useState<Strain[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showAllPlants, setShowAllPlants] = useState(false);
   const [plantSearch, setPlantSearch] = useState("");
@@ -565,6 +603,7 @@ export function PlantsBatches() {
     complianceApi.getPlantBatches().then(setBatches).catch((err) => setError(errorMessage(err)));
     complianceApi.getPlants().then(setPlants).catch((err) => setError(errorMessage(err)));
     complianceApi.getHarvests().then(setHarvests).catch((err) => setError(errorMessage(err)));
+    strainsApi.getStrains().then(setStrains).catch(() => setStrains([]));
   };
 
   useEffect(refresh, []);
@@ -598,7 +637,7 @@ export function PlantsBatches() {
       <div className="section-label">Plant batches</div>
       <Card>
         {batches ? <BatchesTable batches={batches} rooms={rooms} /> : <p className="stat-label">Loading…</p>}
-        <CreateBatchForm rooms={rooms} currentOperator={currentOperator} onCreated={refresh} />
+        <CreateBatchForm rooms={rooms} strains={strains} currentOperator={currentOperator} onCreated={refresh} />
         <TagPlantsForm batches={batches ?? []} rooms={rooms} currentOperator={currentOperator} onTagged={refresh} />
       </Card>
 

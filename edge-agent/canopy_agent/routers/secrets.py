@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from canopy_agent.adapters.registry import available_adapter_types
 from canopy_agent.compliance_sync.registry import available_sync_types
 from canopy_agent.deps import get_db
+from canopy_agent.menu_sync.registry import available_sync_types as available_menu_sync_types
 from canopy_agent.models import FacilitySecret, utcnow
 from canopy_agent.services.operators import get_active_operator, pin_check_failed, require_role
 
@@ -38,16 +39,21 @@ def _require_admin_operator(db: Session, operator_id: str, pin: str | None) -> N
 
 
 def _known_secret_keys() -> dict[str, str]:
-    """key -> description, aggregated from every *installed* sensor adapter's and
-    compliance-sync plugin's required_env_vars — the same source the room-creation
-    UI's EnvVarNotice already reads from, so this list only ever contains
-    credentials something actually installed can use. Not a general-purpose env
-    var editor: routers below reject any key not found here."""
+    """key -> description, aggregated from every *installed* sensor adapter's,
+    compliance-sync plugin's, and menu-sync plugin's required_env_vars — the same
+    source the room-creation UI's EnvVarNotice already reads from, so this list only
+    ever contains credentials something actually installed can use. Not a
+    general-purpose env var editor: routers below reject any key not found here.
+    This is also how Weedmaps/mock menu-sync credentials show up in the dashboard's
+    credentials settings without a dedicated integrations UI of their own — see
+    menu_sync/base.py's own docstring."""
     known: dict[str, str] = {}
     for adapter_cls in available_adapter_types().values():
         known.update(adapter_cls.required_env_vars)
     for sync_cls in available_sync_types().values():
         known.update(sync_cls.required_env_vars)
+    for menu_sync_cls in available_menu_sync_types().values():
+        known.update(menu_sync_cls.required_env_vars)
     return known
 
 
