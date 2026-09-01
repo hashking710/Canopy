@@ -25,7 +25,7 @@ if sys.platform == "win32":
 from canopy_agent.auth import require_token
 from canopy_agent.db import SessionLocal
 from canopy_agent.migrate import upgrade_to_head
-from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, license as license_router, operators, rooms, secrets as secrets_router, ws
+from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, operators, rooms, secrets as secrets_router, ws
 from canopy_agent.seed import seed
 from canopy_agent.seed_compliance import seed_compliance
 from canopy_agent.services.audit_relay import subscribe_relay_forever
@@ -81,22 +81,27 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
 
-    background_tasks = [
-        asyncio.create_task(poll_forever()),
-        asyncio.create_task(retention_forever()),
-        asyncio.create_task(subscribe_relay_forever()),
-    ]
+    # Named (not just a plain list) so /api/health can report per-task liveness —
+    # task.done() means it crashed out of its own infinite loop entirely (a bug in
+    # the loop itself, not a single cycle's exception, which each loop already
+    # catches internally — see poller.py/retention.py/backup.py's own try/except).
+    named_tasks = {
+        "poller": asyncio.create_task(poll_forever()),
+        "retention": asyncio.create_task(retention_forever()),
+        "audit_relay": asyncio.create_task(subscribe_relay_forever()),
+    }
     if DEMO_MODE:
-        background_tasks.append(asyncio.create_task(demo_reset_forever()))
+        named_tasks["demo_reset"] = asyncio.create_task(demo_reset_forever())
     else:
         # Not in demo mode: real data worth protecting. A public demo resets hourly
         # by design, so backing up an intentionally throwaway/tamperable dataset would
         # just fill disk with useless snapshots.
-        background_tasks.append(asyncio.create_task(backup_forever()))
+        named_tasks["backup"] = asyncio.create_task(backup_forever())
+    app.state.background_tasks = named_tasks
     try:
         yield
     finally:
-        for task in background_tasks:
+        for task in named_tasks.values():
             task.cancel()
 
 
@@ -147,8 +152,4 @@ app.include_router(alerts.router, dependencies=[Depends(require_token)])
 app.include_router(license_router.router, dependencies=[Depends(require_token)])
 app.include_router(backup_router.router, dependencies=[Depends(require_token)])
 app.include_router(secrets_router.router, dependencies=[Depends(require_token)])
-
-
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+app.include_router(health_router.router)  # no require_token — see health.py's own docstring

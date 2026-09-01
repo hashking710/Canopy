@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from canopy_agent import models  # noqa: F401  # registers the `rooms` table compliance FKs reference
 from canopy_agent.db import Base
 from canopy_agent.deps import get_db
-from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, license as license_router, operators, rooms, secrets as secrets_router
+from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, operators, rooms, secrets as secrets_router
 
 
 @pytest.fixture()
@@ -38,6 +38,7 @@ def client():
     app.include_router(license_router.router)
     app.include_router(backup_router.router)
     app.include_router(secrets_router.router)
+    app.include_router(health_router.router)
     app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as test_client:
@@ -49,6 +50,18 @@ def operator_id(client):
     """A registered operator, for tests exercising compliance endpoints that now
     require a real operator_id instead of a free-text actor string."""
     return client.post("/api/operators", json={"name": "Test Operator"}).json()["id"]
+
+
+@pytest.fixture(autouse=True)
+def _reset_task_health():
+    """services/health.py's _task_health is a process-global dict — same
+    cross-test leakage risk as the notification-channel cache below, and the
+    same fix: reset it before and after every test."""
+    import canopy_agent.services.health as health
+
+    health._task_health = {}
+    yield
+    health._task_health = {}
 
 
 @pytest.fixture(autouse=True)

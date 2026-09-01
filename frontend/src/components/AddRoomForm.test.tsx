@@ -3,6 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AddRoomForm } from "./AddRoomForm";
 import type { AdapterInfo } from "../api/client";
+import type { Operator } from "../api/complianceTypes";
+
+const testOperator: Operator = {
+  id: "op-1",
+  name: "Test Operator",
+  role: "admin",
+  has_pin: false,
+};
 
 const { getAvailableAdapters, discoverAdapterDevices } = vi.hoisted(() => ({
   getAvailableAdapters: vi.fn(),
@@ -63,7 +71,7 @@ const ble = adapter({
 });
 
 async function openForm() {
-  render(<AddRoomForm onCreated={() => {}} />);
+  render(<AddRoomForm currentOperator={testOperator} onCreated={() => {}} />);
   await userEvent.click(screen.getByRole("button", { name: "+ add room" }));
 }
 

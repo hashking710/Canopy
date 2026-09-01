@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from canopy_agent.db import SessionLocal
 from canopy_agent.models import Reading, ReadingRollup
 from canopy_agent.services.error_reporting import report_system_error
+from canopy_agent.services.health import record_failure, record_success
 
 logger = logging.getLogger("canopy_agent.retention")
 
@@ -25,8 +26,10 @@ async def retention_forever() -> None:
             stats = run_retention_cycle(db)
             if stats["buckets_rolled_up"] or stats["raw_readings_pruned"]:
                 logger.info("retention cycle: %s", stats)
+            record_success("retention")
         except Exception as exc:
             logger.exception("retention cycle failed")
+            record_failure("retention")
             # No UI surfacing at all for this one (unlike a room's poll failure) —
             # a run failing silently for weeks would just mean unbounded DB growth
             # on a Pi's limited storage until someone happens to notice.

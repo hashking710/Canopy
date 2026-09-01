@@ -1,6 +1,7 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { Alerts } from "./pages/Alerts";
 import { Compliance } from "./pages/Compliance";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { FacilityOverview } from "./pages/FacilityOverview";
 import { License } from "./pages/License";
@@ -13,22 +14,29 @@ import { RoomDetail } from "./pages/RoomDetail";
 import { Settings } from "./pages/Settings";
 
 export default function App() {
+  // Keyed by pathname so navigating away from a crashed page mounts a fresh
+  // boundary (a new key means React discards the old, tripped instance) rather
+  // than the fallback UI sticking around until a hard reload.
+  const location = useLocation();
+
   return (
     <>
       <ThemeToggle />
-      <Routes>
-        <Route path="/" element={<FacilityOverview />} />
-        <Route path="/rooms/:roomId" element={<RoomDetail />} />
-        <Route path="/compliance" element={<Compliance />} />
-        <Route path="/plants" element={<PlantsBatches />} />
-        <Route path="/plants/harvests" element={<PlantsHarvests />} />
-        <Route path="/plants/packages" element={<PlantsPackages />} />
-        <Route path="/alerts" element={<Alerts />} />
-        <Route path="/master" element={<MasterSites />} />
-        <Route path="/master/:siteId" element={<MasterSiteRooms />} />
-        <Route path="/license" element={<License />} />
-        <Route path="/settings" element={<Settings />} />
-      </Routes>
+      <ErrorBoundary key={location.pathname}>
+        <Routes>
+          <Route path="/" element={<FacilityOverview />} />
+          <Route path="/rooms/:roomId" element={<RoomDetail />} />
+          <Route path="/compliance" element={<Compliance />} />
+          <Route path="/plants" element={<PlantsBatches />} />
+          <Route path="/plants/harvests" element={<PlantsHarvests />} />
+          <Route path="/plants/packages" element={<PlantsPackages />} />
+          <Route path="/alerts" element={<Alerts />} />
+          <Route path="/master" element={<MasterSites />} />
+          <Route path="/master/:siteId" element={<MasterSiteRooms />} />
+          <Route path="/license" element={<License />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </ErrorBoundary>
     </>
   );
 }

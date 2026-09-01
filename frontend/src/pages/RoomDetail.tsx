@@ -5,9 +5,11 @@ import { Card } from "../components/Card";
 import { CardHeader } from "../components/CardHeader";
 import { EditRoomForm } from "../components/EditRoomForm";
 import { LiveConnectionNotice } from "../components/LiveConnectionNotice";
+import { OperatorPicker } from "../components/OperatorPicker";
 import { Sparkline } from "../components/Sparkline";
 import { StatGrid } from "../components/StatGrid";
 import { TopNav } from "../components/TopNav";
+import { useCurrentOperator } from "../hooks/useCurrentOperator";
 import { useSubmitState } from "../hooks/useSubmitState";
 import { formatTime } from "../lib/formatDateTime";
 import type { ReadingPoint, Room } from "../types";
@@ -27,6 +29,15 @@ export function RoomDetail() {
   const [editing, setEditing] = useState(false);
   const [liveConnected, setLiveConnected] = useState(true);
   const { submitting: deleting, error: deleteError, run: runDelete } = useSubmitState();
+  const {
+    operators,
+    currentOperatorId,
+    currentOperator,
+    changeCurrentOperator,
+    handleOperatorCreated,
+    handleOperatorUpdated,
+    handleOperatorDeactivated,
+  } = useCurrentOperator();
   // Read inside the live-update handler without making the websocket effect below
   // depend on selectedMetric — otherwise switching metric tabs tore down and
   // reopened the whole connection on every click instead of just changing which
@@ -39,8 +50,9 @@ export function RoomDetail() {
   const handleDelete = () =>
     runDelete(async () => {
       if (!roomId) return;
+      if (!currentOperator) throw new Error("pick who you are (below) before deleting a room");
       if (!confirm(`Delete "${room?.title || roomId}"? This also removes its reading history and alert rules.`)) return;
-      await api.deleteRoom(roomId);
+      await api.deleteRoom(roomId, currentOperator.id);
       navigate("/");
     });
 
@@ -97,9 +109,19 @@ export function RoomDetail() {
         </div>
       </div>
 
+      <OperatorPicker
+        operators={operators}
+        currentOperatorId={currentOperatorId}
+        onChange={changeCurrentOperator}
+        onOperatorCreated={handleOperatorCreated}
+        onOperatorUpdated={handleOperatorUpdated}
+        onOperatorDeactivated={handleOperatorDeactivated}
+      />
+
       {editing ? (
         <EditRoomForm
           room={room}
+          currentOperator={currentOperator}
           onCancel={() => setEditing(false)}
           onUpdated={(updated) => {
             setRoom(updated);

@@ -65,24 +65,79 @@ def test_disabled_rule_is_not_evaluated(db_session):
     assert opened == []
 
 
-def test_lt_condition_via_router(client):
+def test_lt_condition_via_router(client, operator_id):
     client.post(
-        "/api/alert-rules", json={"room_id": "greenhouse-a", "metric": "temp_f", "condition": "lt", "threshold": 60.0}
+        "/api/alert-rules",
+        json={
+            "room_id": "greenhouse-a", "metric": "temp_f", "condition": "lt", "threshold": 60.0,
+            "operator_id": operator_id,
+        },
     )
     rules = client.get("/api/alert-rules?room_id=greenhouse-a").json()
     assert len(rules) == 1
     assert rules[0]["condition"] == "lt"
 
 
-def test_delete_alert_rule(client):
+def test_create_alert_rule_requires_a_real_operator(client):
+    resp = client.post(
+        "/api/alert-rules",
+        json={
+            "room_id": "greenhouse-a", "metric": "temp_f", "condition": "gt", "threshold": 90.0,
+            "operator_id": "op-does-not-exist",
+        },
+    )
+    assert resp.status_code == 404
+
+
+def test_create_alert_rule_rejects_viewer_role(client, operator_id):
+    viewer = client.post("/api/operators", json={"name": "Just Looking", "role": "viewer"}).json()
+    resp = client.post(
+        "/api/alert-rules",
+        json={
+            "room_id": "greenhouse-a", "metric": "temp_f", "condition": "gt", "threshold": 90.0,
+            "operator_id": viewer["id"],
+        },
+    )
+    assert resp.status_code == 403
+
+
+def test_delete_alert_rule(client, operator_id):
     created = client.post(
-        "/api/alert-rules", json={"room_id": "greenhouse-a", "metric": "temp_f", "condition": "gt", "threshold": 90.0}
+        "/api/alert-rules",
+        json={
+            "room_id": "greenhouse-a", "metric": "temp_f", "condition": "gt", "threshold": 90.0,
+            "operator_id": operator_id,
+        },
     ).json()
-    deleted = client.delete(f"/api/alert-rules/{created['id']}")
+    deleted = client.request(
+        "DELETE", f"/api/alert-rules/{created['id']}", params={"operator_id": operator_id}
+    )
     assert deleted.status_code == 200
     assert client.get("/api/alert-rules").json() == []
+
+
+def test_delete_alert_rule_rejects_viewer_role(client, operator_id):
+    created = client.post(
+        "/api/alert-rules",
+        json={
+            "room_id": "greenhouse-a", "metric": "temp_f", "condition": "gt", "threshold": 90.0,
+            "operator_id": operator_id,
+        },
+    ).json()
+    viewer = client.post("/api/operators", json={"name": "Just Looking", "role": "viewer"}).json()
+
+    resp = client.request(
+        "DELETE", f"/api/alert-rules/{created['id']}", params={"operator_id": viewer["id"]}
+    )
+    assert resp.status_code == 403
 
 
 def test_acknowledge_alert_event_requires_valid_operator(client):
     unknown_operator = client.post("/api/alert-events/1/acknowledge", json={"operator_id": "not-real"})
     assert unknown_operator.status_code == 404
+
+
+def test_acknowledge_alert_event_rejects_viewer_role(client, operator_id):
+    viewer = client.post("/api/operators", json={"name": "Just Looking", "role": "viewer"}).json()
+    resp = client.post("/api/alert-events/1/acknowledge", json={"operator_id": viewer["id"]})
+    assert resp.status_code == 403

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type AdapterInfo } from "../api/client";
+import type { Operator } from "../api/complianceTypes";
 import { AdapterConfigEditor } from "./AdapterConfigEditor";
 import { DeviceDiscoveryPanel } from "./DeviceDiscoveryPanel";
 import { EnvVarNotice } from "./EnvVarNotice";
@@ -42,7 +43,13 @@ function groupAdaptersByCategory(adapters: AdapterInfo[]): [string, AdapterInfo[
   return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!]);
 }
 
-export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) {
+export function AddRoomForm({
+  currentOperator,
+  onCreated,
+}: {
+  currentOperator: Operator | null;
+  onCreated: (room: Room) => void;
+}) {
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
   const [id, setId] = useState("");
   const [roomType, setRoomType] = useState("greenhouse");
@@ -82,6 +89,7 @@ export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) 
 
   const submit = () =>
     run(async () => {
+      if (!currentOperator) throw new Error("pick who you are (above) before adding a room");
       let adapter_config: Record<string, unknown>;
       try {
         adapter_config = valuesToAdapterConfig(adapterValues, selectedAdapter?.config_schema ?? {});
@@ -97,6 +105,7 @@ export function AddRoomForm({ onCreated }: { onCreated: (room: Room) => void }) 
         adapter_type: adapterType,
         metric_config: rowsToMetricConfig(metricRows),
         adapter_config,
+        operator_id: currentOperator.id,
       });
       onCreated(room);
       setId("");

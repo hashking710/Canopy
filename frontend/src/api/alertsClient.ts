@@ -25,10 +25,21 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
 export const alertsApi = {
   getRules: () => getJson<AlertRule[]>("/api/alert-rules"),
-  createRule: (body: { room_id: string; metric: string; condition: "gt" | "lt"; threshold: number; severity: string }) =>
-    postJson<AlertRule>("/api/alert-rules", body),
-  deleteRule: async (id: string) => {
-    const res = await fetch(`${API_BASE}/api/alert-rules/${id}`, { method: "DELETE", headers: authHeaders() });
+  // Alert rule create/delete are role-gated (role >= "operator", see
+  // routers/alerts.py) — every call site now needs to know who's signed in.
+  createRule: (body: {
+    room_id: string;
+    metric: string;
+    condition: "gt" | "lt";
+    threshold: number;
+    severity: string;
+    operator_id: string;
+  }) => postJson<AlertRule>("/api/alert-rules", body),
+  deleteRule: async (id: string, operatorId: string) => {
+    const res = await fetch(`${API_BASE}/api/alert-rules/${id}?operator_id=${encodeURIComponent(operatorId)}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
     if (!res.ok) {
       const detail = await res.json().catch(() => ({}));
       throw new Error(formatErrorDetail(detail.detail, `delete rule -> ${res.status}`));

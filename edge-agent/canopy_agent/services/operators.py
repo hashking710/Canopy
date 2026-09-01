@@ -12,10 +12,10 @@ PBKDF2_ITERATIONS = 210_000  # OWASP's current minimum recommendation for PBKDF2
 # token, see auth.py) — about a legitimate dashboard user picking "who I am" and
 # the API refusing an action that role isn't allowed, same spirit as the PIN
 # confirmation already required for plant destruction. "viewer" can look but not
-# touch; "operator" is today's baseline (everything an operator could always do);
-# "admin" is required for facility-level changes (credentials, and eventually
-# room/alert-rule configuration — see docs/architecture.md for what's covered so
-# far vs. explicitly flagged as not yet gated).
+# touch; "operator" is today's baseline — everyday facility work an operator could
+# always do (compliance mutations, room/alert-rule configuration); "admin" is
+# reserved for the facility's most sensitive category, credentials, plus
+# operator/role management itself.
 ROLE_RANK = {"viewer": 0, "operator": 1, "admin": 2}
 KNOWN_ROLES = frozenset(ROLE_RANK)
 
@@ -66,3 +66,17 @@ def require_role(operator: Operator, min_role: str) -> None:
             status_code=403,
             detail=f"operator '{operator.name}' has role '{operator.role}', this action requires at least '{min_role}'",
         )
+
+
+def resolve_operator_with_role(db: Session, operator_id: str, min_role: str) -> Operator:
+    """Resolves a real, active operator by id (404 if missing/inactive) and
+    requires they hold at least min_role (403 if not) — the shared shape behind
+    every "this write endpoint needs to know who's doing it, and refuse a
+    viewer" check outside compliance.py (whose own _resolve_operator predates
+    this and additionally handles witness attribution — not worth refactoring
+    just for the sake of one shared helper)."""
+    operator = get_active_operator(db, operator_id)
+    if operator is None:
+        raise HTTPException(status_code=404, detail=f"operator '{operator_id}' not found or inactive")
+    require_role(operator, min_role)
+    return operator

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type AdapterInfo } from "../api/client";
+import type { Operator } from "../api/complianceTypes";
 import { AdapterConfigEditor } from "./AdapterConfigEditor";
 import { EnvVarNotice } from "./EnvVarNotice";
 import { useSettings } from "../hooks/useSettings";
@@ -10,7 +11,17 @@ import { metricConfigToRows, rowsToMetricConfig, type MetricConfigRow } from "..
 import { MetricConfigEditor } from "./MetricConfigEditor";
 import type { Room } from "../types";
 
-export function EditRoomForm({ room, onUpdated, onCancel }: { room: Room; onUpdated: (room: Room) => void; onCancel: () => void }) {
+export function EditRoomForm({
+  room,
+  currentOperator,
+  onUpdated,
+  onCancel,
+}: {
+  room: Room;
+  currentOperator: Operator | null;
+  onUpdated: (room: Room) => void;
+  onCancel: () => void;
+}) {
   const [adapters, setAdapters] = useState<AdapterInfo[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [title, setTitle] = useState(room.title);
@@ -48,6 +59,7 @@ export function EditRoomForm({ room, onUpdated, onCancel }: { room: Room; onUpda
 
   const submit = () =>
     run(async () => {
+      if (!currentOperator) throw new Error("pick who you are before saving changes");
       let adapter_config: Record<string, unknown>;
       try {
         adapter_config = valuesToAdapterConfig(adapterValues, selectedAdapter?.config_schema ?? {});
@@ -64,6 +76,7 @@ export function EditRoomForm({ room, onUpdated, onCancel }: { room: Room; onUpda
         adapter_type: adapterType,
         metric_config: rowsToMetricConfig(metricRows),
         adapter_config,
+        operator_id: currentOperator.id,
       });
       onUpdated(updated);
     });

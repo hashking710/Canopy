@@ -72,9 +72,10 @@ export interface CreateRoomBody {
   metric_config?: Record<string, unknown>;
   adapter_type?: string;
   adapter_config?: Record<string, unknown>;
+  operator_id: string;
 }
 
-export type UpdateRoomBody = Partial<CreateRoomBody>;
+export type UpdateRoomBody = Partial<CreateRoomBody> & { operator_id: string };
 
 export interface RoomConfig {
   adapter_type: string;
@@ -120,9 +121,15 @@ export const api = {
   getRoomConfig: (id: string) => getJson<RoomConfig>(`/api/rooms/${id}/config`),
   getRoomReadings: (id: string, metric?: string) =>
     getJson<ReadingPoint[]>(`/api/rooms/${id}/readings${metric ? `?metric=${metric}` : ""}`),
+  // Room CRUD is role-gated (role >= "operator", see routers/rooms.py) — every
+  // call site now needs to know who's signed in.
   createRoom: (body: CreateRoomBody) => sendJson<Room>("POST", "/api/rooms", body),
   updateRoom: (id: string, body: UpdateRoomBody) => sendJson<Room>("PUT", `/api/rooms/${id}`, body),
-  deleteRoom: (id: string) => sendJson<{ id: string; deleted: boolean }>("DELETE", `/api/rooms/${id}`),
+  deleteRoom: (id: string, operatorId: string) =>
+    sendJson<{ id: string; deleted: boolean }>(
+      "DELETE",
+      `/api/rooms/${id}?operator_id=${encodeURIComponent(operatorId)}`,
+    ),
   getAvailableAdapters: () => getJson<AdapterInfo[]>("/api/rooms/adapters/available"),
   discoverAdapterDevices: (adapterType: string) =>
     sendJson<DiscoveredDevice[]>("POST", `/api/rooms/adapters/${adapterType}/discover`),

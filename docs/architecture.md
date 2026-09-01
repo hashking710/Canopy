@@ -1065,7 +1065,7 @@ first hardening pass already covered.
   token — the actual point being to slow a brute-force sweep through token guesses,
   not just cap request volume. Demo mode gets a tighter general cap on top of the
   same auth-failure tier.
-- **Role-gated operators (built, partial)**: `Operator.role` (`viewer` / `operator`
+- **Role-gated operators (built)**: `Operator.role` (`viewer` / `operator`
   / `admin`, migration `0c97aa8a51bd`) — not a new authentication mechanism (API
   access stays the one shared token, see the auth section above), but a real
   authorization check on top of the operator-attribution system that already existed:
@@ -1081,12 +1081,18 @@ first hardening pass already covered.
   grant anyone the admin role that granting itself requires, a real deadlock. Also
   gated: `/api/secrets` (PUT/DELETE) now requires an `operator_id` (and PIN, if that
   operator has one configured) with role >= `admin` — credentials are the single
-  most sensitive "change a facility setting" category there is. **Not done in this
-  pass**: Room CRUD and Alert Rule CRUD are not yet role-gated — both would need a
-  new required `operator_id` parameter added across ~8 endpoints plus matching
-  frontend changes, a larger, lower-value-per-effort slice than the compliance and
-  credentials coverage above; flagged honestly rather than rushed through at lower
-  quality. Frontend: `OperatorPicker` now shows/sets role (a "change role" control
+  most sensitive "change a facility setting" category there is. Room CRUD and Alert
+  Rule CRUD are now role-gated too (role >= `operator` — routine, frequent,
+  day-to-day facility work, categorically less sensitive than credentials or role
+  management itself): every create/update/delete endpoint in `routers/rooms.py` and
+  `routers/alerts.py` now requires an `operator_id` (query param on DELETEs, a body
+  field elsewhere), resolved and role-checked via a shared
+  `resolve_operator_with_role()` helper in `services/operators.py` rather than
+  duplicating the "404 if missing, 403 if under-ranked" pattern across ~8 endpoints.
+  Frontend: `FacilityOverview.tsx` (add room), `RoomDetail.tsx` (edit/delete room),
+  and `Alerts.tsx` (add/delete alert rule) each gained an `OperatorPicker` and now
+  thread `currentOperator.id` through every mutating call, matching the pattern
+  already established on the compliance pages. Frontend: `OperatorPicker` now shows/sets role (a "change role" control
   gated server-side, same "let the backend be the source of truth on permission,
   don't have the UI pre-judge and get an edge case wrong" reasoning as the existing
   PIN-policy toggle), and `Settings.tsx`'s credentials card picks up the same
@@ -1108,6 +1114,29 @@ first hardening pass already covered.
     regression test for exactly this attack, not just for the individual PIN check.
     Verified live against the running container both before the fix (confirmed
     exploitable) and after (confirmed rejected with a 401).
+- **React error boundary (built)**: before this, one crashing component blanked the
+  entire dashboard to a white screen with no way back short of a hard reload.
+  `frontend/src/components/ErrorBoundary.tsx` is a class component (no hook
+  equivalent for `getDerivedStateFromError`/`componentDidCatch` exists) rendering a
+  fallback UI with a link back to the facility overview. `App.tsx` wraps `<Routes>`
+  in a single boundary keyed by `location.pathname`, so React remounts (and thus
+  resets) it on navigation — a crash on one page doesn't poison every page after it.
+  Not yet wired to any backend error-reporting endpoint — logs via `console.error`
+  only, same as the browser would anyway.
+- **Deeper `/api/health` (built)**: previously a bare liveness check with no signal
+  on whether the app could actually do its job. `services/health.py` is an
+  in-process `dict[str, TaskHealth]` (same "single-process, in-memory" scope as the
+  rate limiter) that the poller, retention, and backup background tasks report into
+  on every cycle (`record_success`/`record_failure`). `routers/health.py` combines
+  that with a real `db.execute(select(1))` reachability check and, via
+  `app.state.background_tasks` (the lifespan's named `asyncio.Task` objects), each
+  task's `.done()` state — catching the case a single cycle's own try/except can't:
+  the outer loop itself dying. Returns `{"status": "ok" | "degraded", "database":
+  {...}, "tasks": {...}}`. Deliberately still left off `require_token` — a liveness
+  probe has to be reachable without credentials to be useful to whatever's polling
+  it. Refactored out of `main.py` into its own router specifically so it could be
+  exercised over real HTTP in `tests/conftest.py`'s lightweight test app, which never
+  runs the real lifespan.
 
 ## Phase 4 — productization
 

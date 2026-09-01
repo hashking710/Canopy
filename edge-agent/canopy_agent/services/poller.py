@@ -11,6 +11,7 @@ from canopy_agent.models import Reading, Room
 from canopy_agent.services.alerts import dispatch_alert_notifications, evaluate_alerts_for_room
 from canopy_agent.services.audit_relay import publish_pending_audit_events
 from canopy_agent.services.error_reporting import report_system_error
+from canopy_agent.services.health import record_failure, record_success
 from canopy_agent.services.mqtt_publisher import mqtt_enabled, publish_states
 from canopy_agent.services.vpd import vpd_kpa
 from canopy_agent.stats import facility_payload, format_stats, get_latest_values_for_rooms, room_payload
@@ -29,8 +30,10 @@ async def poll_forever() -> None:
     while True:
         try:
             await poll_once()
+            record_success("poller")
         except Exception as exc:
             logger.exception("poll cycle failed")
+            record_failure("poller")
             # A whole cycle failing (not just one room's adapter — see
             # _write_room_reading's own try/except for that, already surfaced via
             # Room.last_poll_error in the UI) is genuinely invisible otherwise.

@@ -5,11 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RoomDetail } from "./RoomDetail";
 import type { Room } from "../types";
 
-const { getRoom, getRoomReadings, deleteRoom, connectLiveUpdates } = vi.hoisted(() => ({
+const { getRoom, getRoomReadings, deleteRoom, connectLiveUpdates, getOperators } = vi.hoisted(() => ({
   getRoom: vi.fn(),
   getRoomReadings: vi.fn(),
   deleteRoom: vi.fn(),
   connectLiveUpdates: vi.fn((..._args: unknown[]) => () => {}),
+  getOperators: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
@@ -19,6 +20,14 @@ vi.mock("../api/client", () => ({
     deleteRoom: (...args: unknown[]) => deleteRoom(...args),
   },
   connectLiveUpdates: (...args: unknown[]) => connectLiveUpdates(...args),
+}));
+
+// Room delete/edit are role-gated (role >= "operator", see routers/rooms.py) via
+// the same useCurrentOperator hook every compliance page already uses.
+vi.mock("../api/complianceClient", () => ({
+  complianceApi: {
+    getOperators: (...args: unknown[]) => getOperators(...args),
+  },
 }));
 
 const room: Room = {
@@ -50,6 +59,7 @@ describe("RoomDetail — delete failure must not blank the page", () => {
   beforeEach(() => {
     getRoom.mockResolvedValue(room);
     getRoomReadings.mockResolvedValue([]);
+    getOperators.mockResolvedValue([{ id: "op-1", name: "Admin Operator", role: "admin", has_pin: false }]);
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -85,7 +95,7 @@ describe("RoomDetail — delete failure must not blank the page", () => {
 
     await user.click(screen.getByText("delete room"));
 
-    await waitFor(() => expect(deleteRoom).toHaveBeenCalledWith("greenhouse-a"));
+    await waitFor(() => expect(deleteRoom).toHaveBeenCalledWith("greenhouse-a", "op-1"));
   });
 });
 
@@ -102,6 +112,7 @@ describe("RoomDetail — live connection", () => {
     connectLiveUpdates.mockClear();
     getRoom.mockResolvedValue(roomWithStats);
     getRoomReadings.mockResolvedValue([]);
+    getOperators.mockResolvedValue([{ id: "op-1", name: "Admin Operator", role: "admin", has_pin: false }]);
   });
 
   it("opens exactly one live connection and does not reopen it when switching metric tabs", async () => {

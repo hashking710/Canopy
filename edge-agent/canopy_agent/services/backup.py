@@ -22,6 +22,7 @@ from pathlib import Path
 from canopy_agent.db import DATA_DIR, DB_PATH
 from canopy_agent.services.coa_storage import COA_DIR
 from canopy_agent.services.error_reporting import report_system_error
+from canopy_agent.services.health import record_failure, record_success
 
 logger = logging.getLogger("canopy_agent.backup")
 
@@ -104,8 +105,10 @@ async def backup_forever() -> None:
             # this server is handling (dashboard loads, sensor polling, compliance
             # actions) until the backup finishes. to_thread keeps it off the loop.
             await asyncio.to_thread(run_backup)
+            record_success("backup")
         except Exception as exc:
             logger.exception("scheduled backup failed")
+            record_failure("backup")
             # Arguably the most important one to report of all three — a failed
             # backup has zero UI surfacing anywhere, and the whole point of this
             # system is being the durable fallback if the device itself fails; a

@@ -5,8 +5,10 @@ import { AddRoomForm } from "../components/AddRoomForm";
 import { EntityCard } from "../components/EntityCard";
 import { FacilitySummary } from "../components/FacilitySummary";
 import { LiveConnectionNotice } from "../components/LiveConnectionNotice";
+import { OperatorPicker } from "../components/OperatorPicker";
 import { SetupFacilityForm } from "../components/SetupFacilityForm";
 import { TopNav } from "../components/TopNav";
+import { useCurrentOperator } from "../hooks/useCurrentOperator";
 import type { Room } from "../types";
 
 interface Section {
@@ -34,6 +36,15 @@ export function FacilityOverview() {
   const [error, setError] = useState<string | null>(null);
   const [notSetUp, setNotSetUp] = useState(false);
   const [liveConnected, setLiveConnected] = useState(true);
+  const {
+    operators,
+    currentOperatorId,
+    currentOperator,
+    changeCurrentOperator,
+    handleOperatorCreated,
+    handleOperatorUpdated,
+    handleOperatorDeactivated,
+  } = useCurrentOperator();
 
   const load = () => {
     Promise.all([api.getFacility(), api.getRooms()])
@@ -96,7 +107,15 @@ export function FacilityOverview() {
       ))}
 
       <div className="section-label">Add a room</div>
-      <AddRoomForm onCreated={load} />
+      <OperatorPicker
+        operators={operators}
+        currentOperatorId={currentOperatorId}
+        onChange={changeCurrentOperator}
+        onOperatorCreated={handleOperatorCreated}
+        onOperatorUpdated={handleOperatorUpdated}
+        onOperatorDeactivated={handleOperatorDeactivated}
+      />
+      <AddRoomForm currentOperator={currentOperator} onCreated={load} />
     </div>
   );
 }

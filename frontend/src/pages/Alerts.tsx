@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { alertsApi } from "../api/alertsClient";
 import type { AlertEvent, AlertRule } from "../api/alertsTypes";
+import type { Operator } from "../api/complianceTypes";
 import { Badge } from "../components/Badge";
 import { Card } from "../components/Card";
+import { OperatorPicker } from "../components/OperatorPicker";
 import { TopNav } from "../components/TopNav";
 import { useCurrentOperator } from "../hooks/useCurrentOperator";
 import { useRooms } from "../hooks/useRooms";
@@ -158,7 +160,15 @@ function RulesTable({
   );
 }
 
-function CreateRuleForm({ rooms, onCreated }: { rooms: Room[]; onCreated: () => void }) {
+function CreateRuleForm({
+  rooms,
+  currentOperator,
+  onCreated,
+}: {
+  rooms: Room[];
+  currentOperator: Operator | null;
+  onCreated: () => void;
+}) {
   const [roomId, setRoomId] = useState("");
   const [metric, setMetric] = useState("");
   const [condition, setCondition] = useState<"gt" | "lt">("gt");
@@ -171,7 +181,18 @@ function CreateRuleForm({ rooms, onCreated }: { rooms: Room[]; onCreated: () => 
 
   const submit = () =>
     run(async () => {
-      await alertsApi.createRule({ room_id: roomId, metric, condition, threshold: Number(threshold), severity });
+      // Alert rules are role-gated (role >= "operator", see routers/alerts.py) —
+      // an explicit error here beats a silent no-op if nobody's picked who they
+      // are (below) yet.
+      if (!currentOperator) throw new Error("pick who you are (below) before adding a rule");
+      await alertsApi.createRule({
+        room_id: roomId,
+        metric,
+        condition,
+        threshold: Number(threshold),
+        severity,
+        operator_id: currentOperator.id,
+      });
       setRoomId("");
       setMetric("");
       setThreshold("");
@@ -243,7 +264,15 @@ export function Alerts() {
   const [events, setEvents] = useState<AlertEvent[] | null>(null);
   const [rules, setRules] = useState<AlertRule[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { currentOperator } = useCurrentOperator();
+  const {
+    operators,
+    currentOperatorId,
+    currentOperator,
+    changeCurrentOperator,
+    handleOperatorCreated,
+    handleOperatorUpdated,
+    handleOperatorDeactivated,
+  } = useCurrentOperator();
   const rooms = useRooms();
   const acknowledgeAction = useRowAction<number>();
   const deleteRuleAction = useRowAction<string>();
@@ -264,7 +293,8 @@ export function Alerts() {
 
   const deleteRule = (id: string) =>
     deleteRuleAction.run(id, async () => {
-      await alertsApi.deleteRule(id);
+      if (!currentOperator) throw new Error("pick who you are (below) before deleting a rule");
+      await alertsApi.deleteRule(id, currentOperator.id);
       refresh();
     });
 
@@ -301,13 +331,21 @@ export function Alerts() {
 
       <div className="section-label">Alert rules</div>
       <Card>
+        <OperatorPicker
+          operators={operators}
+          currentOperatorId={currentOperatorId}
+          onChange={changeCurrentOperator}
+          onOperatorCreated={handleOperatorCreated}
+          onOperatorUpdated={handleOperatorUpdated}
+          onOperatorDeactivated={handleOperatorDeactivated}
+        />
         {rules ? (
           <RulesTable rules={rules} rooms={rooms} onDelete={deleteRule} pendingId={deleteRuleAction.pendingId} />
         ) : (
           <p className="stat-label">Loading…</p>
         )}
         {deleteRuleAction.error && <p className="form-error" role="alert">{deleteRuleAction.error}</p>}
-        <CreateRuleForm rooms={rooms} onCreated={refresh} />
+        <CreateRuleForm rooms={rooms} currentOperator={currentOperator} onCreated={refresh} />
       </Card>
     </div>
   );

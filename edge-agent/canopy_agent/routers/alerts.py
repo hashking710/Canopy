@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from canopy_agent.compliance_serialize import model_to_dict
 from canopy_agent.deps import get_db
 from canopy_agent.models import AlertEvent, AlertRule
-from canopy_agent.services.operators import get_active_operator
+from canopy_agent.services.operators import get_active_operator, require_role, resolve_operator_with_role
 
 router = APIRouter(prefix="/api", tags=["alerts"])
 
@@ -20,6 +20,7 @@ class CreateAlertRuleRequest(BaseModel):
     condition: str  # "gt" | "lt"
     threshold: float
     severity: str = "warning"  # "warning" | "critical"
+    operator_id: str
 
 
 class AcknowledgeAlertRequest(BaseModel):
@@ -28,6 +29,7 @@ class AcknowledgeAlertRequest(BaseModel):
 
 @router.post("/alert-rules")
 def create_alert_rule(body: CreateAlertRuleRequest, db: Session = Depends(get_db)) -> dict:
+    resolve_operator_with_role(db, body.operator_id, "operator")
     if body.condition not in ("gt", "lt"):
         raise HTTPException(status_code=400, detail="condition must be 'gt' or 'lt'")
     rule = AlertRule(
@@ -52,7 +54,8 @@ def list_alert_rules(room_id: str | None = None, db: Session = Depends(get_db)) 
 
 
 @router.delete("/alert-rules/{rule_id}")
-def delete_alert_rule(rule_id: str, db: Session = Depends(get_db)) -> dict:
+def delete_alert_rule(rule_id: str, operator_id: str, db: Session = Depends(get_db)) -> dict:
+    resolve_operator_with_role(db, operator_id, "operator")
     rule = db.get(AlertRule, rule_id)
     if rule is None:
         raise HTTPException(status_code=404, detail="alert rule not found")
@@ -74,6 +77,7 @@ def acknowledge_alert_event(event_id: int, body: AcknowledgeAlertRequest, db: Se
     operator = get_active_operator(db, body.operator_id)
     if operator is None:
         raise HTTPException(status_code=404, detail=f"operator '{body.operator_id}' not found or inactive")
+    require_role(operator, "operator")
     event = db.get(AlertEvent, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="alert event not found")

@@ -9,6 +9,7 @@ from canopy_agent.adapters.registry import available_adapter_types
 from canopy_agent.deps import get_db
 from canopy_agent.models import AlertEvent, AlertRule, Reading, ReadingRollup, Room, RoomAdapter
 from canopy_agent.schemas import ReadingPoint, RoomAdapterOut, RoomConfigOut, RoomOut
+from canopy_agent.services.operators import resolve_operator_with_role
 from canopy_agent.stats import get_latest_values, room_payload
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
@@ -28,6 +29,7 @@ class CreateRoomRequest(BaseModel):
     metric_config: dict = {}
     adapter_type: str = "mock"
     adapter_config: dict = {}
+    operator_id: str
 
 
 class UpdateRoomRequest(BaseModel):
@@ -40,6 +42,7 @@ class UpdateRoomRequest(BaseModel):
     metric_config: dict | None = None
     adapter_type: str | None = None
     adapter_config: dict | None = None
+    operator_id: str
 
 
 def _validate_id(room_id: str) -> None:
@@ -158,6 +161,7 @@ def get_room_config(room_id: str, db: Session = Depends(get_db)) -> RoomConfigOu
 
 @router.post("", response_model=RoomOut)
 def create_room(body: CreateRoomRequest, db: Session = Depends(get_db)) -> RoomOut:
+    resolve_operator_with_role(db, body.operator_id, "operator")
     if body.room_type == "facility":
         raise HTTPException(status_code=400, detail="use POST /api/facility to set up the facility, not this endpoint")
     _validate_id(body.id)
@@ -180,11 +184,15 @@ def create_room(body: CreateRoomRequest, db: Session = Depends(get_db)) -> RoomO
 
 @router.put("/{room_id}", response_model=RoomOut)
 def update_room(room_id: str, body: UpdateRoomRequest, db: Session = Depends(get_db)) -> RoomOut:
+    resolve_operator_with_role(db, body.operator_id, "operator")
     room = db.get(Room, room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="room not found")
 
-    updates = body.model_dump(exclude_unset=True)
+    # operator_id is attribution, not a Room column — must not reach the setattr
+    # loop below, or it'd silently stick an untracked attribute onto the ORM
+    # instance instead of being applied as a real column update.
+    updates = body.model_dump(exclude_unset=True, exclude={"operator_id"})
     if "metric_config" in updates:
         # Validated against whichever adapter_type will actually be in effect after
         # this update — the new one if it's changing, otherwise the room's existing one.
@@ -199,7 +207,8 @@ def update_room(room_id: str, body: UpdateRoomRequest, db: Session = Depends(get
 
 
 @router.delete("/{room_id}")
-def delete_room(room_id: str, db: Session = Depends(get_db)) -> dict:
+def delete_room(room_id: str, operator_id: str, db: Session = Depends(get_db)) -> dict:
+    resolve_operator_with_role(db, operator_id, "operator")
     room = db.get(Room, room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="room not found")
@@ -223,6 +232,7 @@ def delete_room(room_id: str, db: Session = Depends(get_db)) -> dict:
 class AddRoomAdapterRequest(BaseModel):
     adapter_type: str
     adapter_config: dict = {}
+    operator_id: str
 
 
 @router.post("/{room_id}/adapters", response_model=RoomAdapterOut)
@@ -232,6 +242,7 @@ def add_room_adapter(room_id: str, body: AddRoomAdapterRequest, db: Session = De
     services/poller.py) — e.g. a BLE temp/RH controller plus a separate CO2 probe on
     the same room. The room's primary adapter is unaffected; use PUT /{room_id} to
     change that one."""
+    resolve_operator_with_role(db, body.operator_id, "operator")
     room = db.get(Room, room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="room not found")
@@ -244,7 +255,8 @@ def add_room_adapter(room_id: str, body: AddRoomAdapterRequest, db: Session = De
 
 
 @router.delete("/{room_id}/adapters/{adapter_id}")
-def remove_room_adapter(room_id: str, adapter_id: int, db: Session = Depends(get_db)) -> dict:
+def remove_room_adapter(room_id: str, adapter_id: int, operator_id: str, db: Session = Depends(get_db)) -> dict:
+    resolve_operator_with_role(db, operator_id, "operator")
     extra = db.get(RoomAdapter, adapter_id)
     if extra is None or extra.room_id != room_id:
         raise HTTPException(status_code=404, detail="extra adapter not found on this room")
