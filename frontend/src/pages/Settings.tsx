@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { api, type BackupStatus, type SecretInfo } from "../api/client";
 import { Card } from "../components/Card";
+import { OperatorPicker } from "../components/OperatorPicker";
 import { TopNav } from "../components/TopNav";
+import { useCurrentOperator } from "../hooks/useCurrentOperator";
 import { useSettings } from "../hooks/useSettings";
 import { useSubmitState } from "../hooks/useSubmitState";
 import { formatDateTime } from "../lib/formatDateTime";
 import { TIMEZONE_OPTIONS } from "../lib/timezones";
+import type { Operator } from "../api/complianceTypes";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -62,20 +65,37 @@ function BackupsCard() {
 // save/clear action independently (rules of hooks: can't call a hook a variable
 // number of times inside one component body, but a variable number of *component
 // instances* each calling it once is exactly what this is).
-function SecretRow({ secret, onChange }: { secret: SecretInfo; onChange: () => void }) {
+function SecretRow({
+  secret,
+  currentOperator,
+  onChange,
+}: {
+  secret: SecretInfo;
+  currentOperator: Operator | null;
+  onChange: () => void;
+}) {
   const [value, setValue] = useState("");
+  const [pin, setPin] = useState("");
   const { submitting, error, success, run } = useSubmitState();
 
+  // Credentials are facility-settings-tier sensitive — the API requires an
+  // operator with role >= admin (see routers/secrets.py); a viewer/operator gets
+  // a clear 403 from useSubmitState's own error display rather than the button
+  // being silently disabled, since role isn't the picker's job to pre-judge.
   const save = () =>
     run(async () => {
-      await api.setSecret(secret.key, value);
+      if (!currentOperator) throw new Error("pick who you are (below) before setting a credential");
+      await api.setSecret(secret.key, value, currentOperator.id, pin || undefined);
       setValue("");
+      setPin("");
       onChange();
     });
 
   const clear = () =>
     run(async () => {
-      await api.clearSecret(secret.key);
+      if (!currentOperator) throw new Error("pick who you are (below) before clearing a credential");
+      await api.clearSecret(secret.key, currentOperator.id, pin || undefined);
+      setPin("");
       onChange();
     });
 
@@ -98,6 +118,15 @@ function SecretRow({ secret, onChange }: { secret: SecretInfo; onChange: () => v
           placeholder={secret.is_set ? "enter a new value to replace it" : "not set"}
           style={{ flex: "1 1 240px" }}
         />
+        {currentOperator?.has_pin && (
+          <input
+            type="password"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            placeholder="your PIN"
+            style={{ flex: "0 1 120px" }}
+          />
+        )}
         <button className="inline-button" onClick={save} disabled={submitting || !value.trim()}>
           {submitting ? "saving…" : "save"}
         </button>
@@ -116,6 +145,15 @@ function SecretRow({ secret, onChange }: { secret: SecretInfo; onChange: () => v
 function CredentialsCard() {
   const [secrets, setSecrets] = useState<SecretInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const {
+    operators,
+    currentOperatorId,
+    currentOperator,
+    changeCurrentOperator,
+    handleOperatorCreated,
+    handleOperatorUpdated,
+    handleOperatorDeactivated,
+  } = useCurrentOperator();
 
   const refresh = () => {
     api.getSecrets().then(setSecrets).catch((err) => setError(err instanceof Error ? err.message : String(err)));
@@ -132,11 +170,20 @@ function CredentialsCard() {
       <p className="stat-label" style={{ margin: "4px 0 12px" }}>
         Credentials every installed cloud sensor adapter or compliance-sync plugin needs — set here instead of
         editing docker-compose.yml/.env and restarting. Takes effect on the very next poll cycle. Values are
-        write-only: once saved, this page never shows them back.
+        write-only: once saved, this page never shows them back. Setting or clearing one needs an operator with
+        the admin role.
       </p>
+      <OperatorPicker
+        operators={operators}
+        currentOperatorId={currentOperatorId}
+        onChange={changeCurrentOperator}
+        onOperatorCreated={handleOperatorCreated}
+        onOperatorUpdated={handleOperatorUpdated}
+        onOperatorDeactivated={handleOperatorDeactivated}
+      />
       {!secrets && <p className="stat-label">Loading…</p>}
       {secrets?.map((s) => (
-        <SecretRow key={s.key} secret={s} onChange={refresh} />
+        <SecretRow key={s.key} secret={s} currentOperator={currentOperator} onChange={refresh} />
       ))}
     </Card>
   );

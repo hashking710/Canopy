@@ -28,7 +28,7 @@ vi.mock("../api/client", () => ({
   api: { getRooms: (...args: unknown[]) => getRooms(...args) },
 }));
 
-const operator: Operator = { id: "op-1", name: "Alex Rivera", has_pin: false };
+const operator: Operator = { id: "op-1", name: "Alex Rivera", role: "operator", has_pin: false };
 const plant: Plant = {
   id: "tag-001",
   batch_id: null,

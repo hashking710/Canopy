@@ -1017,6 +1017,98 @@ live curl/Playwright checks); nothing in this section is a stub.
   live until they do. Verified visually across the facility overview, compliance, and
   alerts pages (badges, tables, forms, scan input all re-themed correctly via tokens).
 
+## Production-readiness pass — logging, error reporting, rate limiting, roles (built)
+
+A second hardening pass, closing gaps found by actually auditing the app for
+"could I run this as a real product and trust it," not just re-verifying what the
+first hardening pass already covered.
+
+- **Structured, configurable logging (built)**: before this, the whole app ran on
+  whatever Python's/uvicorn's logging defaults happened to be — no level control,
+  no structured output, and the ~12 files that call `logger.*()` had no guaranteed
+  destination. `edge-agent/canopy_agent/logging_config.py` (and an identical copy in
+  `master/canopy_master/`, same "separate deployment, own copy" reasoning as
+  `mqtt_subscriber.py`'s note) reads `CANOPY_LOG_LEVEL` (default `INFO`) and
+  `CANOPY_LOG_FORMAT` (`text`, the default, or `json` — a hand-rolled formatter, not
+  a new dependency, since the shape needed is small and fixed). Routes uvicorn's own
+  loggers through the same handler so app logs and request logs are one consistent
+  stream. Called at the very top of `main.py`, before any other `canopy_agent`
+  module is imported.
+- **Error reporting for real software failures, not just plant alerts (built)**:
+  `services/error_reporting.py`'s `report_system_error()` reuses the *exact* same
+  notification-channel plugin architecture `AlertEvent`s already dispatch through
+  (webhook/email, each a no-op until its own env vars are set) — zero new
+  configuration surface, zero new dependency (no Sentry SDK; the existing channels
+  already solve "get a real failure in front of a person"). Wired into the three
+  background-task failures that were genuinely invisible otherwise — a whole poll
+  cycle crashing, a retention cycle failing, a scheduled backup failing — and into a
+  new global FastAPI exception handler for unhandled route-handler crashes.
+  Deliberately *not* wired into every `except Exception` in the codebase: a room's
+  per-adapter poll failure already surfaces via `Room.last_poll_error` in the
+  dashboard UI, and the MQTT publisher/audit-relay failures are *expected* on a
+  single-Pi deployment with no broker configured, per their own existing comments —
+  reporting those too would just be alert spam. Building this surfaced a real,
+  separate latent bug: `webhook.py`/`email.py`/`discord.py` were reading their config
+  once at `__init__` — the exact same staleness bug the credentials hot-reload pass
+  fixed for sensor adapters, just never applied to notification channels. Fixed the
+  same way (read fresh in `send()`), and added an autouse `_reset_notification_channel_cache`
+  test fixture so the registry's per-process channel cache can't leak state between
+  tests either.
+- **Rate limiting outside demo mode (built)**: the real product's API had none at
+  all — only the public demo instance did. `services/rate_limit.py` replaces the
+  demo-only limiter with one always mounted, two tiers: a generous general limit
+  (`CANOPY_RATE_LIMIT_PER_MINUTE`, default 120/min/IP — high enough to never brush
+  against real dashboard usage, since live readings come over the WS connection,
+  not HTTP polling) and a much stricter auth-failure throttle
+  (`CANOPY_AUTH_FAILURE_LIMIT`, default 10 per 5 minutes) that blocks an IP outright
+  once tripped, regardless of whether a later attempt finally presents the correct
+  token — the actual point being to slow a brute-force sweep through token guesses,
+  not just cap request volume. Demo mode gets a tighter general cap on top of the
+  same auth-failure tier.
+- **Role-gated operators (built, partial)**: `Operator.role` (`viewer` / `operator`
+  / `admin`, migration `0c97aa8a51bd`) — not a new authentication mechanism (API
+  access stays the one shared token, see the auth section above), but a real
+  authorization check on top of the operator-attribution system that already existed:
+  a legitimate dashboard user picks who they are, and the API now refuses a
+  `viewer`-role operator from performing (or witnessing) any compliance mutation —
+  `services/operators.py`'s `require_role()`, enforced inside `compliance.py`'s
+  `_resolve_operator`, which every compliance-mutating endpoint already calls for
+  attribution, so this needed zero new required parameters there. Existing operators
+  (from before this migration) all became `admin`, preserving exactly what they
+  could already do; new operators default to `operator`. The very first operator a
+  facility ever registers is always forced to `admin` regardless of what's
+  requested — without that, a brand-new facility has no operator with permission to
+  grant anyone the admin role that granting itself requires, a real deadlock. Also
+  gated: `/api/secrets` (PUT/DELETE) now requires an `operator_id` (and PIN, if that
+  operator has one configured) with role >= `admin` — credentials are the single
+  most sensitive "change a facility setting" category there is. **Not done in this
+  pass**: Room CRUD and Alert Rule CRUD are not yet role-gated — both would need a
+  new required `operator_id` parameter added across ~8 endpoints plus matching
+  frontend changes, a larger, lower-value-per-effort slice than the compliance and
+  credentials coverage above; flagged honestly rather than rushed through at lower
+  quality. Frontend: `OperatorPicker` now shows/sets role (a "change role" control
+  gated server-side, same "let the backend be the source of truth on permission,
+  don't have the UI pre-judge and get an edge case wrong" reasoning as the existing
+  PIN-policy toggle), and `Settings.tsx`'s credentials card picks up the same
+  `useCurrentOperator` hook every compliance page already uses.
+  - **Security review finding, caught and fixed before shipping**: a dedicated
+    security-review pass on this diff found that `POST /api/operators/{id}/role`
+    treated a client-supplied `acting_operator_id` as proof of identity on its own
+    — it checked that *some* operator with that id held the admin role, but never
+    verified the caller actually *was* that operator. Since `GET /api/operators`
+    lists every operator's role with no gating, anyone holding the (already-shared)
+    API token could look up a real admin's id and cite it to grant *their own*
+    unrelated operator the admin role — a full bypass of every role check this
+    feature exists to enforce, including the PIN-gated protection on `/api/secrets`.
+    Fixed by requiring that admin's PIN too (when they have one configured), the
+    same `pin_check_failed` pattern `secrets.py`'s `_require_admin_operator` already
+    used — role management is at least as sensitive as the actions it gates and
+    needed the identical guard. `tests/test_secrets.py`'s
+    `test_cannot_impersonate_a_pinned_admin_by_id_alone_to_self_promote` is a real
+    regression test for exactly this attack, not just for the individual PIN check.
+    Verified live against the running container both before the fix (confirmed
+    exploitable) and after (confirmed rejected with a 401).
+
 ## Phase 4 — productization
 
 - Custom Raspberry Pi OS image (via `pi-gen`) with the edge agent preinstalled as a

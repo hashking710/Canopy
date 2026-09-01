@@ -51,6 +51,20 @@ def operator_id(client):
     return client.post("/api/operators", json={"name": "Test Operator"}).json()["id"]
 
 
+@pytest.fixture(autouse=True)
+def _reset_notification_channel_cache():
+    """notifications/registry.py caches one instance per channel for the whole
+    process lifetime (same reasoning as adapters/registry.py) — without resetting
+    it, a test that exercises get_active_channels() under one env var
+    configuration would leak stale channel instances into whatever test runs
+    next in the same pytest session."""
+    import canopy_agent.notifications.registry as registry
+
+    registry._instances = None
+    yield
+    registry._instances = None
+
+
 @pytest.fixture()
 def db_session():
     """A plain SQLAlchemy session against a fresh in-memory DB, for tests that call

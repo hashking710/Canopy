@@ -184,9 +184,12 @@ export interface WasteEvent {
   overdue: boolean | null;
 }
 
+export type OperatorRole = "viewer" | "operator" | "admin";
+
 export interface Operator {
   id: string;
   name: string;
+  role: OperatorRole;
   has_pin: boolean;
 }
 

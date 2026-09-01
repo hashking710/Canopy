@@ -41,6 +41,14 @@ class Operator(Base):
     undermines an audit trail's whole point. Selecting from a constrained list of
     registered operators — optionally PIN-confirmed for high-stakes actions like plant
     destruction — is real attribution without the cost of building full auth.
+
+    `role` (added later, migration 8f1c4a2b9e3d) is a second, narrower thing than
+    that same auth question: given everyone already shares the one API token, a role
+    isn't about keeping an untrusted party out — it's about a legitimate dashboard
+    user picking "who I am" and the API then refusing to let a viewer-role pick
+    destroy plants or change facility credentials, same spirit as the PIN
+    confirmation already required for destruction. See services/operators.py's
+    ROLE_RANK for the hierarchy and require_role() for the enforcement helper.
     """
 
     __tablename__ = "operators"
@@ -49,6 +57,7 @@ class Operator(Base):
     name: Mapped[str] = mapped_column(String, unique=True)
     pin_hash: Mapped[str | None] = mapped_column(String, nullable=True)  # PBKDF2, see services/operators.py
     pin_salt: Mapped[str | None] = mapped_column(String, nullable=True)
+    role: Mapped[str] = mapped_column(String, default="operator")  # "viewer" | "operator" | "admin"
     active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

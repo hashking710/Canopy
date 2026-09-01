@@ -27,7 +27,7 @@ vi.mock("../api/complianceClient", () => ({
   },
 }));
 
-const operator = { id: "op-1", name: "Alex Rivera", has_pin: false };
+const operator = { id: "op-1", name: "Alex Rivera", role: "operator" as const, has_pin: false };
 
 const trimPackage: Package = {
   id: "pkg-trim",

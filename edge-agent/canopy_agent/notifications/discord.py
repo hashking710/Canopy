@@ -23,17 +23,17 @@ class DiscordNotificationChannel(NotificationChannel):
     plugin_description = "Posts alert notifications to a Discord channel via an incoming webhook."
     config_schema = {"CANOPY_ALERT_DISCORD_WEBHOOK_URL": "A Discord incoming webhook URL"}
 
-    def __init__(self) -> None:
-        self._url = os.environ.get("CANOPY_ALERT_DISCORD_WEBHOOK_URL")
-
     async def send(self, alert: dict) -> None:
-        if not self._url:
+        # Read fresh on every send — see webhook.py's send() for why (one instance
+        # per channel is shared across the process lifetime).
+        url = os.environ.get("CANOPY_ALERT_DISCORD_WEBHOOK_URL")
+        if not url:
             return
-        await asyncio.to_thread(self._post, alert)
+        await asyncio.to_thread(self._post, url, alert)
 
-    def _post(self, alert: dict) -> None:
+    def _post(self, url: str, alert: dict) -> None:
         request = urllib.request.Request(
-            self._url,
+            url,
             data=json.dumps({"embeds": [_build_embed(alert)]}).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",

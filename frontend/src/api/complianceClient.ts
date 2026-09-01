@@ -12,6 +12,7 @@ import type {
   LabTest,
   MovePlantBody,
   Operator,
+  OperatorRole,
   Package,
   PackageHarvestBody,
   PinPolicy,
@@ -87,7 +88,14 @@ export const complianceApi = {
   setStateRules: (body: { state_code: string; operator_id: string }) =>
     postJson<StateRulesResponse>("/api/compliance/state-rules", body),
   getOperators: () => getJson<Operator[]>("/api/operators"),
-  createOperator: (body: { name: string; pin?: string }) => postJson<Operator>("/api/operators", body),
+  createOperator: (body: { name: string; pin?: string; role?: OperatorRole }) =>
+    postJson<Operator>("/api/operators", body),
+  setOperatorRole: (operatorId: string, role: OperatorRole, actingOperatorId: string, pin?: string) =>
+    postJson<Operator>(`/api/operators/${operatorId}/role`, {
+      role,
+      acting_operator_id: actingOperatorId,
+      pin,
+    }),
   resetOperatorPin: (operatorId: string, pin: string | undefined) =>
     postJson<Operator>(`/api/operators/${operatorId}/reset-pin`, { pin }),
   deactivateOperator: (operatorId: string) =>

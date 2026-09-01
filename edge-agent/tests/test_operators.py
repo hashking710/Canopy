@@ -6,6 +6,50 @@ def test_create_and_list_operators(client):
     assert any(o["id"] == created["id"] and o["name"] == "Sam Grower" for o in listing)
 
 
+# ---- roles ----------------------------------------------------------------------------
+
+
+def test_the_very_first_operator_is_always_admin_regardless_of_requested_role(client):
+    """A brand-new facility has no operators at all yet, and set_operator_role
+    itself requires an existing admin to grant anyone else the admin role — so
+    without this, a fresh install would have no path to ever getting one."""
+    first = client.post("/api/operators", json={"name": "First Ever", "role": "viewer"}).json()
+    assert first["role"] == "admin"
+
+
+def test_the_second_operator_gets_the_requested_role_normally(client):
+    client.post("/api/operators", json={"name": "First Ever"})  # becomes admin
+    second = client.post("/api/operators", json={"name": "Second One", "role": "viewer"}).json()
+    assert second["role"] == "viewer"
+
+
+def test_create_operator_defaults_to_operator_role(client):
+    client.post("/api/operators", json={"name": "First Ever"})  # becomes admin
+    second = client.post("/api/operators", json={"name": "No Role Specified"}).json()
+    assert second["role"] == "operator"
+
+
+def test_create_operator_rejects_an_unknown_role(client):
+    resp = client.post("/api/operators", json={"name": "Bad Role", "role": "superuser"})
+    assert resp.status_code == 400
+
+
+def test_set_operator_role_rejects_an_unknown_role(client, operator_id):
+    target = client.post("/api/operators", json={"name": "Target"}).json()
+    resp = client.post(
+        f"/api/operators/{target['id']}/role", json={"role": "superuser", "acting_operator_id": operator_id}
+    )
+    assert resp.status_code == 400
+
+
+def test_set_operator_role_rejects_an_unknown_acting_operator(client, operator_id):
+    target = client.post("/api/operators", json={"name": "Target"}).json()
+    resp = client.post(
+        f"/api/operators/{target['id']}/role", json={"role": "admin", "acting_operator_id": "op-nope"}
+    )
+    assert resp.status_code == 404
+
+
 def test_duplicate_operator_name_rejected(client):
     client.post("/api/operators", json={"name": "Dup Operator"})
     dup = client.post("/api/operators", json={"name": "Dup Operator"})

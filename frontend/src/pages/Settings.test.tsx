@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
 import { TIMEZONE_KEY } from "../hooks/useSettings";
 
-const { getBackupStatus, runBackupNow, getSecrets, setSecret, clearSecret } = vi.hoisted(() => ({
+const { getBackupStatus, runBackupNow, getSecrets, setSecret, clearSecret, getOperators } = vi.hoisted(() => ({
   getBackupStatus: vi.fn(),
   runBackupNow: vi.fn(),
   getSecrets: vi.fn(),
   setSecret: vi.fn(),
   clearSecret: vi.fn(),
+  getOperators: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
@@ -20,6 +21,15 @@ vi.mock("../api/client", () => ({
     getSecrets: (...args: unknown[]) => getSecrets(...args),
     setSecret: (...args: unknown[]) => setSecret(...args),
     clearSecret: (...args: unknown[]) => clearSecret(...args),
+  },
+}));
+
+// CredentialsCard now needs to know "who's signed in" (secrets are admin-gated —
+// see routers/secrets.py) via the same useCurrentOperator hook every compliance
+// page already uses.
+vi.mock("../api/complianceClient", () => ({
+  complianceApi: {
+    getOperators: (...args: unknown[]) => getOperators(...args),
   },
 }));
 
@@ -33,8 +43,14 @@ function renderPage() {
 
 describe("Settings", () => {
   beforeEach(() => {
+    // Clears call history (not mock implementations) on every hoisted mock —
+    // without this, e.g. a later test's `expect(setSecret).not.toHaveBeenCalled()`
+    // would see calls left over from an earlier test in this same file, since a
+    // vi.fn() created via vi.hoisted() is one shared object across the whole file.
+    vi.clearAllMocks();
     getBackupStatus.mockResolvedValue({ count: 0, latest: null, backups: [] });
     getSecrets.mockResolvedValue([]);
+    getOperators.mockResolvedValue([{ id: "op-1", name: "Admin Operator", role: "admin", has_pin: false }]);
   });
 
   afterEach(() => {
@@ -45,7 +61,7 @@ describe("Settings", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.selectOptions(screen.getByRole("combobox"), "America/Chicago");
+    await user.selectOptions(screen.getByLabelText(/Timezone for dates/), "America/Chicago");
 
     expect(localStorage.getItem(TIMEZONE_KEY)).toBe("America/Chicago");
   });
@@ -55,7 +71,7 @@ describe("Settings", () => {
     localStorage.setItem(TIMEZONE_KEY, "America/Chicago");
     renderPage();
 
-    await user.selectOptions(screen.getByRole("combobox"), "");
+    await user.selectOptions(screen.getByLabelText(/Timezone for dates/), "");
 
     expect(localStorage.getItem(TIMEZONE_KEY)).toBeNull();
   });
@@ -139,12 +155,15 @@ describe("Settings", () => {
       setSecret.mockResolvedValue({ key: goveeSecret.key, is_set: true });
       renderPage();
       await screen.findByText("CANOPY_GOVEE_API_KEY");
+      await screen.findByText(/Admin Operator/); // operator picker finished loading
 
       getSecrets.mockResolvedValue([{ ...goveeSecret, is_set: true, set_via_dashboard: true }]);
       await user.type(screen.getByPlaceholderText("not set"), "my-real-key");
       await user.click(screen.getByText("save"));
 
-      await waitFor(() => expect(setSecret).toHaveBeenCalledWith("CANOPY_GOVEE_API_KEY", "my-real-key"));
+      await waitFor(() =>
+        expect(setSecret).toHaveBeenCalledWith("CANOPY_GOVEE_API_KEY", "my-real-key", "op-1", undefined),
+      );
       expect(await screen.findByText(/Saved — takes effect/)).toBeInTheDocument();
     });
 
@@ -154,12 +173,31 @@ describe("Settings", () => {
       clearSecret.mockResolvedValue({ key: goveeSecret.key, is_set: false });
       renderPage();
       await screen.findByText("clear");
+      await screen.findByText(/Admin Operator/);
 
       getSecrets.mockResolvedValue([goveeSecret]);
       await user.click(screen.getByText("clear"));
 
-      await waitFor(() => expect(clearSecret).toHaveBeenCalledWith("CANOPY_GOVEE_API_KEY"));
+      await waitFor(() => expect(clearSecret).toHaveBeenCalledWith("CANOPY_GOVEE_API_KEY", "op-1", undefined));
       expect(await screen.findByText("needs setup")).toBeInTheDocument();
+    });
+
+    it("shows an error instead of saving when no operator is selected", async () => {
+      const user = userEvent.setup();
+      getOperators.mockResolvedValue([]); // fresh facility, nobody registered yet
+      getSecrets.mockResolvedValue([goveeSecret]);
+      renderPage();
+      await screen.findByText("CANOPY_GOVEE_API_KEY");
+      // getOperators and getSecrets resolve independently — this confirms the
+      // operator picker has actually settled into its empty state too, not just
+      // that the secrets list has rendered, before acting on the form.
+      await screen.findByText("no operators registered");
+
+      await user.type(screen.getByPlaceholderText("not set"), "my-real-key");
+      await user.click(screen.getByText("save"));
+
+      expect(await screen.findByText(/pick who you are/)).toBeInTheDocument();
+      expect(setSecret).not.toHaveBeenCalled();
     });
   });
 });

@@ -167,6 +167,47 @@ def test_destroy_requires_correct_pin_when_operator_has_one(client):
     assert correct_pin.status_code == 200
 
 
+def test_viewer_role_cannot_perform_any_compliance_mutation(client):
+    client.post("/api/operators", json={"name": "The Admin"})  # first ever -> admin
+    viewer = client.post("/api/operators", json={"name": "Just Looking", "role": "viewer"}).json()
+
+    rejected = client.post(
+        "/api/compliance/plant-batches",
+        json={
+            "name": "VIEWER-TEST-001", "batch_type": "Clone", "strain": "Test Strain", "room_id": "test-room",
+            "planted_date": "2026-07-01", "count": 1, "operator_id": viewer["id"],
+        },
+    )
+    assert rejected.status_code == 403
+    assert "viewer" in rejected.json()["detail"]
+
+
+def test_viewer_cannot_serve_as_a_witness_either(client, operator_id):
+    """require_role runs inside _resolve_operator, which _resolve_witness also
+    calls on the witness_operator_id — a viewer shouldn't be able to legitimize a
+    destruction by standing in as the second-person witness any more than they
+    could perform it themselves."""
+    viewer = client.post("/api/operators", json={"name": "Viewer Witness", "role": "viewer"}).json()
+    batch = client.post(
+        "/api/compliance/plant-batches",
+        json={
+            "name": "WITNESS-VIEWER-001", "batch_type": "Clone", "strain": "Test Strain", "room_id": "test-room",
+            "planted_date": "2026-07-01", "count": 1, "operator_id": operator_id,
+        },
+    ).json()
+    tagged = client.post(
+        f"/api/compliance/plant-batches/{batch['id']}/tag-plants",
+        json={"count": 1, "operator_id": operator_id},
+    ).json()
+    plant_id = tagged["plants"][0]["id"]
+
+    resp = client.post(
+        f"/api/compliance/plants/{plant_id}/destroy",
+        json={"weight_g": 5.0, "operator_id": operator_id, "witness_operator_id": viewer["id"]},
+    )
+    assert resp.status_code == 403
+
+
 def test_witness_must_be_a_different_operator(client, operator_id):
     batch = client.post(
         "/api/compliance/plant-batches",

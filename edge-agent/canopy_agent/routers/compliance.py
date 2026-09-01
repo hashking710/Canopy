@@ -50,7 +50,7 @@ from canopy_agent.services.coa_storage import CoaUploadError, coa_path, save_coa
 from canopy_agent.services.compliance_deadlines import is_waste_overdue, waste_reporting_deadline
 from canopy_agent.services.csv_export import rows_to_csv
 from canopy_agent.services.facility_state import FACILITY_STATE_ROW_ID, get_active_state_code, set_active_state_code
-from canopy_agent.services.operators import get_active_operator, pin_check_failed
+from canopy_agent.services.operators import get_active_operator, pin_check_failed, require_role
 from canopy_agent.services.reconciliation import (
     is_recount_stale,
     latest_physical_counts,
@@ -78,10 +78,15 @@ async def _sync(coro) -> None:
 
 def _resolve_operator(db: Session, operator_id: str) -> Operator:
     """Every compliance action is attributed to a real, registered Operator — not a
-    free-text string anyone could type any name into. See compliance_models.Operator."""
+    free-text string anyone could type any name into (see compliance_models.Operator)
+    — and, since operator_id is already mandatory on every mutating call site here,
+    this is also the one place that needs to enforce that a 'viewer'-role operator
+    can never perform (or witness) a compliance mutation. Read-only endpoints in
+    this router never call this function, so nothing here affects list/GET access."""
     operator = get_active_operator(db, operator_id)
     if operator is None:
         raise HTTPException(status_code=404, detail=f"operator '{operator_id}' not found or inactive")
+    require_role(operator, "operator")
     return operator
 
 

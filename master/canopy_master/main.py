@@ -5,6 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from canopy_master.logging_config import configure_logging
+
+configure_logging("master")
+
 if sys.platform == "win32":
     # paho-mqtt (via aiomqtt) needs loop.add_reader/add_writer, which Windows' default
     # ProactorEventLoop doesn't implement. Linux (the real deployment target for master,

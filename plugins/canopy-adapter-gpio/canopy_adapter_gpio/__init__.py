@@ -184,23 +184,28 @@ class GpioAdapter(SensorAdapter):
     (2^16), not SHT31's 65535 — a real, documented difference between Sensirion's own
     product lines, not a typo.
 
-    "kind": "bme280" — I2C temp/RH/barometric pressure (Bosch BME280). **Confidence:
-    lower than every other sensor in this package, called out deliberately rather
-    than blanket-claimed.** Every other sensor here needs a short command or a
-    conventional register read; BME280 needs on-device calibration coefficients
-    (burned into NVM per physical chip, read from registers 0x88-0xA1 and 0xE1-0xE7)
-    fed through Bosch's own published compensation formulas — real 32/64-bit
-    fixed-point math with several intermediate terms per measurement (see
-    `compensate_bme280`). Implemented here from Bosch's official datasheet reference
-    algorithm (transcribed as carefully as possible from memory of that widely-
-    reproduced formula, not copied from a datasheet PDF open in front of the code) —
-    this is a meaningfully higher transcription-risk piece of code than anything else
-    in this package. Tests below check internal consistency (compensated values move
-    the right direction as raw ADC counts change, revert to sane values at the
-    formula's own defined edge cases) rather than an exact worked-example match this
-    implementation cannot fully guarantee without a real chip or the datasheet PDF in
-    hand. **Cross-check against Bosch's BME280 datasheet §4.2.3 and its own worked
-    example (§8.1) before trusting a real reading from this.**
+    "kind": "bme280" — I2C temp/RH/barometric pressure (Bosch BME280). Every other
+    sensor in this package needs a short command or a conventional register read;
+    BME280 needs on-device calibration coefficients (burned into NVM per physical
+    chip, read from registers 0x88-0xA1 and 0xE1-0xE7) fed through Bosch's own
+    published compensation formulas — real double-precision math with several
+    intermediate terms per measurement (see `compensate_bme280`), the most involved
+    protocol math in this package.
+
+    **Confidence update**: originally implemented from memory of the widely-
+    reproduced formula, flagged as this package's lowest-confidence code and in
+    genuine need of a real cross-check. That cross-check has since been done for
+    real — `compensate_bme280` was diffed line-by-line against Bosch's actual
+    official reference driver (github.com/boschsensortec/BME280_SensorAPI's
+    bme280.c), fetched and read directly rather than trusted from memory a second
+    time. It caught three real, confirmed discrepancies (a missing factor in the
+    humidity formula worth ~1.7 percentage points of RH error with realistic
+    calibration data in one worked example, an incomplete divide-by-zero guard on
+    the pressure formula, and missing output clamping on temperature/pressure) —
+    see `compensate_bme280`'s own docstring for the specifics. Still genuinely
+    worth a live-hardware readback to confirm end to end (no substitute for that
+    exists), but the formula itself is no longer this package's weakest link —
+    it's now verified against the vendor's own source, not memory.
     """
 
     plugin_name = "Direct GPIO/I2C/1-Wire sensors"
@@ -730,11 +735,32 @@ def parse_bme280_raw_adc(data: bytes) -> tuple[int, int, int]:
 def compensate_bme280(adc_t: int, adc_p: int, adc_h: int, cal: Bme280Calibration) -> tuple[float, float, float]:
     """Bosch's official double-precision reference compensation formula (datasheet
     §4.2.3) — temperature must be compensated first since t_fine feeds into both the
-    pressure and humidity formulas. Returns (temp_c, pressure_hpa, rh_pct)."""
+    pressure and humidity formulas. Returns (temp_c, pressure_hpa, rh_pct).
+
+    Confidence note update: this function was cross-checked line-by-line against
+    Bosch's real, official reference driver
+    (github.com/boschsensortec/BME280_SensorAPI, bme280.c's double-precision
+    compensate_temperature/_pressure/_humidity) rather than left as untested
+    from-memory math — fetched and diffed directly, not reconstructed. Doing that
+    caught three real discrepancies, now fixed:
+      1. Humidity was missing a factor: the reference reassigns
+         `var6 = var3*var4*(var5*var6)`, which multiplies by `var5` a *second* time
+         (it's already inside the old var6) — the previous Canopy code only applied
+         it once, producing real, non-negligible error (~1.7 percentage points of
+         RH in one worked example with dig_H3=40) whenever a chip's dig_H3
+         calibration coefficient is non-zero, which real chips' commonly are.
+      2. Pressure's divide-by-zero guard checked `var1 == 0.0`; the reference
+         checks `var1 > 0.0`, i.e. also guards a *negative* var1 (mathematically
+         possible depending on calibration data), which would otherwise divide by
+         a negative number and produce a nonsensical value silently.
+      3. Missing the reference's own clamping to each value's physically-valid
+         range (temp -40..85°C, pressure 300..1100 hPa, humidity 0..100% — the
+         last of which the previous code already had).
+    """
     var1 = (adc_t / 16384.0 - cal.dig_T1 / 1024.0) * cal.dig_T2
     var2 = (adc_t / 131072.0 - cal.dig_T1 / 8192.0) ** 2 * cal.dig_T3
     t_fine = var1 + var2
-    temp_c = t_fine / 5120.0
+    temp_c = min(85.0, max(-40.0, t_fine / 5120.0))
 
     var1 = t_fine / 2.0 - 64000.0
     var2 = var1 * var1 * cal.dig_P6 / 32768.0
@@ -742,22 +768,20 @@ def compensate_bme280(adc_t: int, adc_p: int, adc_h: int, cal: Bme280Calibration
     var2 = var2 / 4.0 + cal.dig_P4 * 65536.0
     var1 = (cal.dig_P3 * var1 * var1 / 524288.0 + cal.dig_P2 * var1) / 524288.0
     var1 = (1.0 + var1 / 32768.0) * cal.dig_P1
-    if var1 == 0.0:
-        pressure_hpa = 0.0  # avoid a division by zero the datasheet itself calls out as invalid
+    if var1 <= 0.0:
+        pressure_hpa = 300.0  # datasheet's own pressure_min (30000 Pa) — var1<=0 is the invalid case it defines
     else:
         p = 1048576.0 - adc_p
         p = (p - var2 / 4096.0) * 6250.0 / var1
         var1 = cal.dig_P9 * p * p / 2147483648.0
         var2 = p * cal.dig_P8 / 32768.0
         p = p + (var1 + var2 + cal.dig_P7) / 16.0
-        pressure_hpa = p / 100.0  # datasheet's own formula yields Pa; hPa is the more common display unit
+        pressure_hpa = min(1100.0, max(300.0, p / 100.0))  # datasheet's own formula yields Pa; hPa is more common
 
     var_h = t_fine - 76800.0
-    var_h = (adc_h - (cal.dig_H4 * 64.0 + cal.dig_H5 / 16384.0 * var_h)) * (
-        cal.dig_H2
-        / 65536.0
-        * (1.0 + cal.dig_H6 / 67108864.0 * var_h * (1.0 + cal.dig_H3 / 67108864.0 * var_h))
-    )
+    var5 = 1.0 + cal.dig_H3 / 67108864.0 * var_h
+    var6 = 1.0 + cal.dig_H6 / 67108864.0 * var_h * var5
+    var_h = (adc_h - (cal.dig_H4 * 64.0 + cal.dig_H5 / 16384.0 * var_h)) * (cal.dig_H2 / 65536.0 * (var5 * var6))
     var_h = var_h * (1.0 - cal.dig_H1 * var_h / 524288.0)
     rh_pct = min(100.0, max(0.0, var_h))
 

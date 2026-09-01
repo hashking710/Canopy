@@ -1,10 +1,20 @@
 import asyncio
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+# Before any other canopy_agent module is imported — several of them log at import
+# or first-call time (adapter registry load failures, etc.), and those should go
+# through the real configured handler/format too, not whatever bare logging.warning
+# would do with zero handlers attached.
+from canopy_agent.logging_config import configure_logging
+
+configure_logging("edge-agent")
 
 if sys.platform == "win32":
     # paho-mqtt (via aiomqtt, used for the optional MQTT publisher) needs
@@ -20,9 +30,10 @@ from canopy_agent.seed import seed
 from canopy_agent.seed_compliance import seed_compliance
 from canopy_agent.services.audit_relay import subscribe_relay_forever
 from canopy_agent.services.backup import backup_forever
-from canopy_agent.services.demo_rate_limit import DemoRateLimitMiddleware
 from canopy_agent.services.demo_reset import demo_reset_forever, reset_demo_data
+from canopy_agent.services.error_reporting import report_system_error
 from canopy_agent.services.poller import poll_forever
+from canopy_agent.services.rate_limit import RateLimitMiddleware
 from canopy_agent.services.retention import retention_forever
 from canopy_agent.services.secrets_bootstrap import load_secrets_into_environ
 
@@ -89,7 +100,22 @@ async def lifespan(app: FastAPI):
             task.cancel()
 
 
+logger = logging.getLogger("canopy_agent.main")
+
 app = FastAPI(title="Canopy Edge Agent", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def _report_unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+    """FastAPI's own default 500 handling already returns a generic error response
+    — this only adds the report_system_error dispatch on top, so a genuinely
+    unexpected route-handler crash (not a normal HTTPException — those never reach
+    here) reaches the same webhook/email channels as a background-task failure,
+    instead of only ever showing up in server logs."""
+    logger.exception("unhandled exception in %s %s", request.method, request.url.path)
+    await report_system_error("http", f"unhandled exception in {request.method} {request.url.path}", exc)
+    return JSONResponse(status_code=500, content={"detail": "internal server error"})
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -103,8 +129,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if DEMO_MODE:
-    app.add_middleware(DemoRateLimitMiddleware)
+# Always mounted, not just in demo mode — the general limit is generous enough
+# (120/min per IP by default, see services/rate_limit.py) to never brush against
+# real dashboard usage, but a real deployment reachable beyond a pure LAN (see
+# docs/deployment-tls.md) had no rate limiting at all before this. Demo mode gets a
+# tighter general cap, since it's deliberately publicly writable, on top of the
+# same auth-failure throttle every deployment gets.
+_rate_limit_kwargs = {"general_limit": 60} if DEMO_MODE else {}
+app.add_middleware(RateLimitMiddleware, **_rate_limit_kwargs)
 
 app.include_router(facility.router, dependencies=[Depends(require_token)])
 app.include_router(rooms.router, dependencies=[Depends(require_token)])

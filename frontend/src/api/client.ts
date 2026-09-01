@@ -130,9 +130,13 @@ export const api = {
   getBackupStatus: () => getJson<BackupStatus>("/api/backup/status"),
   runBackupNow: () => sendJson<BackupEntry>("POST", "/api/backup/run"),
   getSecrets: () => getJson<SecretInfo[]>("/api/secrets"),
-  setSecret: (key: string, value: string) =>
-    sendJson<{ key: string; is_set: boolean }>("PUT", `/api/secrets/${key}`, { value }),
-  clearSecret: (key: string) => sendJson<{ key: string; is_set: boolean }>("DELETE", `/api/secrets/${key}`),
+  // Credentials are facility-settings-tier sensitive — routers/secrets.py requires
+  // an operator with role >= admin (and their PIN, if they have one) to set or
+  // clear one, same as canopy_agent's other role-gated actions.
+  setSecret: (key: string, value: string, operatorId: string, pin?: string) =>
+    sendJson<{ key: string; is_set: boolean }>("PUT", `/api/secrets/${key}`, { value, operator_id: operatorId, pin }),
+  clearSecret: (key: string, operatorId: string, pin?: string) =>
+    sendJson<{ key: string; is_set: boolean }>("DELETE", `/api/secrets/${key}`, { operator_id: operatorId, pin }),
 };
 
 export function connectLiveUpdates(

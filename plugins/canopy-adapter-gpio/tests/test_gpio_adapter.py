@@ -301,11 +301,39 @@ def test_compensate_bme280_temperature_increases_with_higher_adc_reading():
 
 
 def test_compensate_bme280_pressure_guards_against_division_by_zero():
-    # The datasheet's own formula defines var1 == 0 as invalid and calls for skipping
-    # the division rather than raising ZeroDivisionError — dig_P1=0 forces that path.
+    # The datasheet's own formula defines var1 <= 0 as invalid and calls for
+    # skipping the division rather than raising ZeroDivisionError or dividing by a
+    # negative number — dig_P1=0 forces var1 == 0 exactly. Falls back to the
+    # datasheet's own pressure_min (30000 Pa = 300 hPa), not a bare 0.0 (see
+    # compensate_bme280's docstring for why 0.0 was the wrong fallback).
     cal = _simple_calibration(dig_P1=0, dig_P2=0, dig_P3=0)
     _, pressure_hpa, _ = compensate_bme280(adc_t=400000, adc_p=400000, adc_h=30000, cal=cal)
-    assert pressure_hpa == 0.0
+    assert pressure_hpa == 300.0
+
+
+def test_compensate_bme280_pressure_guards_against_negative_var1_too():
+    # A `== 0.0` check (the previous code) would miss this — the reference driver
+    # itself guards `> 0.0`, not `!= 0.0`, meaning it treats negative var1 as
+    # invalid too. dig_P1 is parsed as unsigned in real calibration data (see
+    # parse_bme280_calibration's _u16 field), so -30000 here isn't a value real
+    # hardware could produce — this is exercising compensate_bme280's own branch
+    # logic directly (Bme280Calibration itself does no range validation), not a
+    # realistic calibration scenario.
+    cal = _simple_calibration(dig_P1=-30000, dig_P2=0, dig_P3=0, dig_P4=0, dig_P5=0, dig_P6=0)
+    _, pressure_hpa, _ = compensate_bme280(adc_t=400000, adc_p=400000, adc_h=30000, cal=cal)
+    assert pressure_hpa == 300.0
+
+
+def test_compensate_bme280_pressure_is_clamped_to_datasheet_range():
+    cal = _simple_calibration(dig_P8=32767, dig_P9=32767)  # pushed toward saturating high
+    _, pressure_hpa, _ = compensate_bme280(adc_t=400000, adc_p=1, adc_h=30000, cal=cal)
+    assert 300.0 <= pressure_hpa <= 1100.0
+
+
+def test_compensate_bme280_temperature_is_clamped_to_datasheet_range():
+    cal = _simple_calibration(dig_T2=32767, dig_T3=32767)  # pushed toward saturating high
+    temp_c, _, _ = compensate_bme280(adc_t=1048575, adc_p=400000, adc_h=30000, cal=cal)
+    assert -40.0 <= temp_c <= 85.0
 
 
 def test_compensate_bme280_humidity_is_clamped_to_0_100():
@@ -314,14 +342,25 @@ def test_compensate_bme280_humidity_is_clamped_to_0_100():
     assert 0.0 <= rh_pct <= 100.0
 
 
+def test_compensate_bme280_humidity_matches_bosch_reference_formula_with_nonzero_dig_h3():
+    # Regression test for a real bug this package used to have: with dig_H3=0 (the
+    # shared fixture's default, and the earlier tests above), the missing `var5`
+    # factor described in compensate_bme280's docstring is invisible — var5
+    # collapses to exactly 1.0, masking the bug. dig_H3 is commonly non-zero on
+    # real chips. The expected value here was independently re-derived by
+    # transcribing Bosch's real reference driver a second, separate time and
+    # running it against these same inputs — it isn't just this function's own
+    # output copy-pasted into an assertion.
+    cal = _simple_calibration(dig_H1=75, dig_H2=366, dig_H3=40, dig_H4=301, dig_H5=50, dig_H6=30)
+    _, _, rh_pct = compensate_bme280(adc_t=519888, adc_p=415148, adc_h=32000, cal=cal)
+    assert rh_pct == pytest.approx(73.34485936869932)
+
+
 def test_compensate_bme280_runs_without_crashing_on_realistic_inputs():
-    # Not a claim of numeric correctness (see the honesty note above) — just proof
-    # the formula executes end to end and returns three finite, plausible-range
-    # numbers for inputs in a real sensor's normal operating range.
     cal = _simple_calibration()
     temp_c, pressure_hpa, rh_pct = compensate_bme280(adc_t=519888, adc_p=415148, adc_h=32768, cal=cal)
-    assert -40 < temp_c < 85  # BME280's documented operating range
-    assert 300 < pressure_hpa < 1100  # documented operating range
+    assert -40 <= temp_c <= 85  # BME280's documented operating range
+    assert 300 <= pressure_hpa <= 1100  # documented operating range
     assert 0 <= rh_pct <= 100
 
 

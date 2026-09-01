@@ -9,12 +9,32 @@ from canopy_agent.adapters.registry import available_adapter_types
 from canopy_agent.compliance_sync.registry import available_sync_types
 from canopy_agent.deps import get_db
 from canopy_agent.models import FacilitySecret, utcnow
+from canopy_agent.services.operators import get_active_operator, pin_check_failed, require_role
 
 router = APIRouter(prefix="/api/secrets", tags=["secrets"])
 
 
 class SetSecretRequest(BaseModel):
     value: str
+    operator_id: str
+    pin: str | None = None
+
+
+class ClearSecretRequest(BaseModel):
+    operator_id: str
+    pin: str | None = None
+
+
+def _require_admin_operator(db: Session, operator_id: str, pin: str | None) -> None:
+    """Credentials are the most sensitive "change settings" category this facility
+    has — gated at role >= admin, same PIN-if-configured pattern the compliance
+    router already uses for destruction actions, not a new mechanism."""
+    operator = get_active_operator(db, operator_id)
+    if operator is None:
+        raise HTTPException(status_code=404, detail=f"operator '{operator_id}' not found or inactive")
+    if pin_check_failed(operator, pin):
+        raise HTTPException(status_code=401, detail=f"PIN required or incorrect for operator '{operator.name}'")
+    require_role(operator, "admin")
 
 
 def _known_secret_keys() -> dict[str, str]:
@@ -53,6 +73,8 @@ def list_secrets(db: Session = Depends(get_db)) -> list[dict]:
 
 @router.put("/{key}")
 def set_secret(key: str, body: SetSecretRequest, db: Session = Depends(get_db)) -> dict:
+    _require_admin_operator(db, body.operator_id, body.pin)
+
     known = _known_secret_keys()
     if key not in known:
         raise HTTPException(
@@ -80,7 +102,9 @@ def set_secret(key: str, body: SetSecretRequest, db: Session = Depends(get_db)) 
 
 
 @router.delete("/{key}")
-def clear_secret(key: str, db: Session = Depends(get_db)) -> dict:
+def clear_secret(key: str, body: ClearSecretRequest, db: Session = Depends(get_db)) -> dict:
+    _require_admin_operator(db, body.operator_id, body.pin)
+
     known = _known_secret_keys()
     if key not in known:
         raise HTTPException(
