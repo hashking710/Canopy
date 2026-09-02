@@ -274,6 +274,45 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
   tested against a real local HTTP server, but the actual auth handshake and value
   semantics carry the same "needs a real account to fully trust" caveat as every
   other from-source-not-from-hardware adapter here.
+- **Six more vendor adapters, from a deep hardware-API research pass (built)**: found
+  by researching which cultivation-relevant hardware vendors have a real, usable
+  integration path beyond what was already covered — sourced from each vendor's own
+  live documentation (fetched directly, not recalled), not guessed at.
+  - **`meter_zentra` (`plugins/canopy-adapter-meter-zentra/`)** — METER Group ZENTRA
+    Cloud (TEROS/ATMOS/PHYTOS soil/substrate/weather sensors). Base URL, `X-API-Key`
+    auth header, and the `GET /devices/{id}/data` endpoint are confirmed directly
+    against ZENTRA's own v5 API docs; the exact response envelope isn't (their own
+    overview doc defers that to a separate reference article this project's fetch
+    tooling couldn't reach) — `read()` makes the real authenticated request but
+    parses the response defensively, raising a diagnostic error naming the actual
+    top-level keys found rather than guessing a shape and returning silently wrong
+    values.
+  - **`hobolink` (`plugins/canopy-adapter-hobolink/`)** — Onset HOBOlink Web
+    Services V3. Real OAuth2 client-credentials flow and the `/data/file/JSON/
+    user/{userId}` export endpoint, both confirmed against Onset's own published
+    Developer's Guide. Same defensive-response-parsing posture as ZENTRA above for
+    the parts not independently confirmed.
+  - **`priva` (`plugins/canopy-adapter-priva/`)** — Priva Realtime Data API
+    (enterprise greenhouse climate computers). The OAuth2/OIDC token exchange
+    (`auth.priva.com/connect/token`) is real and implemented; the actual telemetry-
+    read endpoint isn't — Priva's API is provisioned per-customer (a fixed base URL
+    can't even be hardcoded) and its reference docs are behind an account login.
+    `read()` runs the real token acquisition, then raises `NotImplementedError`
+    naming exactly what a real account would be needed to confirm.
+  - **`growlink`, `argus`, `pulsegrow`** — scaffolds, same posture as the
+    pre-existing `trolmaster` adapter: real vendor infrastructure confirmed to exist
+    (Growlink's cannabis-specific Azure-APIM-backed developer portal; Argus
+    Controls' GET-only, username/password-gated Titan API, confirmed via their own
+    official datasheet; Pulse Grow's live `api.pulsegrow.com` API with in-app-issued
+    keys) but no publicly reachable endpoint reference for any of the three — each
+    `read()` raises `NotImplementedError` with a specific, sourced explanation of
+    what's blocking it, never a guessed request shape presented as working.
+  - Corrections from this same research pass: the pre-existing `trolmaster` and
+    `ac_infinity` adapters' approaches were independently re-verified and found
+    still accurate — no changes needed. Fluence/Signify GrowWise-brand lighting
+    controllers were researched and found to already be covered by the generic
+    `modbus` adapter (they document Modbus/the open Horticulture Lighting Protocol
+    for third-party integration) rather than needing a dedicated plugin.
 - **Modbus TCP/RTU — generic (`modbus`, built)**:
   `plugins/canopy-adapter-modbus/`. Came out of hardware-landscape research into what
   commercial cultivation facilities actually run (Trolmaster, Argus, Priva, Growlink,
@@ -787,9 +826,25 @@ to change:
   growers are the free/light tier; licensed multi-site commercial operations are the
   ones that need the heavier machinery.
 
-11 states are populated (`AZ`, `CA`, `CO`, `IL`, `MA`, `MD`, `MI`, `MO`, `NV`, `OH`,
-`OK`) — see each module's `notes` field for exact sourcing before relying on a non-CA
-state. After three research passes (the second and third both using `curl`+`pdftotext`
+14 states are populated (`AZ`, `CA`, `CO`, `FL`, `IL`, `MA`, `MD`, `MI`, `MO`, `NJ`,
+`NV`, `NY`, `OH`, `OK`) — see each module's `notes` field for exact sourcing before
+relying on a non-CA state. A fourth research pass added `NY`/`NJ`/`FL` (Florida
+confirmed on **BioTrack**, not METRC — the first non-METRC state in this dataset
+besides Arizona and Illinois; New Jersey confirmed to permit **no home cultivation
+at all**, recreational or medical, a real and notable outlier in this dataset) and
+corrected two existing states against current regulation text: Massachusetts'
+adult-use purchase limit doubled from 1oz to 2oz (effective April 2026, H.5350), and
+Nevada's previously-flagged NAC-vs-statute figure conflict was resolved via a
+regulation recodification. Every fact this research pass touched keeps the same
+honest per-field `Confidence` marker as the rest of the dataset — several NJ/FL
+fields (tagging trigger, exact testing citation) are explicitly `could_not_verify`
+rather than guessed. **This entire dataset is AI-researched from public regulatory
+text, not legal advice** — the Compliance page's jurisdiction picker now says so
+directly in the product, not just in these code comments, and any operator relying
+on it for real licensing/compliance decisions should have it reviewed by a licensed
+professional in their state first.
+
+After three research passes (the second and third both using `curl`+`pdftotext`
 to read primary sources that failed to parse via web-fetching tools alone — several
 findings, including Ohio's rescinded waste rule and Colorado's stale tagging threshold,
 came directly from PDFs that would have gone unread otherwise), confidence gaps across
@@ -1177,10 +1232,20 @@ whoever's watching the shared facility-wide channels.
   a manual "sync now" trigger, role-gated the same as strains. Two shipped plugin
   packages: `canopy-menusync-mock` (a real, dependency-free reference implementation
   — the "generic POS" the user can point at today without any vendor account) and
-  `canopy-menusync-weedmaps` (a real HTTP client against Weedmaps' Menu API — built
-  for real, but its exact request shape is **unverified against a live account**,
-  unlike `MetrcComplianceSync`'s shapes which are each cited against a real reference
-  client; flagged in its own module docstring rather than presented as confirmed).
+  `canopy-menusync-weedmaps` (a real HTTP client against Weedmaps' actual Menu API —
+  rewritten after a deep-research pass against Weedmaps' own live developer docs,
+  same evidence bar `MetrcComplianceSync` holds itself to now: real OAuth2
+  client-credentials auth against `api-g.weedmaps.com/auth/token`, the real
+  `PUT /menus/{menu_id}/items/external/{external_id}` upsert endpoint, and the real
+  `genetics`/`cannabinoids`/`variants` payload shape — replacing an earlier version
+  of this plugin that guessed a bearer-key REST shape with a fabricated `lineage`
+  field that has no real Weedmaps counterpart at all). **Weedmaps' menu API is
+  POS-partner-gated, not merchant self-serve** — per their own onboarding docs, a
+  facility can't get its own API credentials by signing up directly, and Weedmaps is
+  not currently onboarding new integration partners at all. This plugin is real and
+  ready; going live requires Weedmaps' own approval, which is out of Canopy's
+  control — flagged prominently in the plugin's own docstring, not buried as a
+  footnote.
   Both plugins' `required_env_vars` feed into `routers/secrets.py`'s existing
   `_known_secret_keys()` aggregation, so their credentials show up in the Settings
   page's existing credentials card automatically — no separate integrations UI

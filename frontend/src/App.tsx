@@ -31,7 +31,7 @@ export default function App() {
           <Route path="/plants" element={<PlantsBatches />} />
           <Route path="/plants/harvests" element={<PlantsHarvests />} />
           <Route path="/plants/packages" element={<PlantsPackages />} />
-          <Route path="/genetics" element={<Genetics />} />
+          <Route path="/plants/genetics" element={<Genetics />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/master" element={<MasterSites />} />
           <Route path="/master/:siteId" element={<MasterSiteRooms />} />

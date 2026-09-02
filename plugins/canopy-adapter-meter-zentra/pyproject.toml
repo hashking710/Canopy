@@ -1,0 +1,29 @@
+[project]
+name = "canopy-adapter-meter-zentra"
+version = "0.1.0"
+description = "METER Group ZENTRA Cloud sensor adapter for Canopy (TEROS/ATMOS/PHYTOS soil & substrate sensors via ZL6/EM60G loggers)"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "canopy-agent",
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.entry-points."canopy.sensor_adapters"]
+meter_zentra = "canopy_adapter_meter_zentra:MeterZentraAdapter"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canopy_adapter_meter_zentra*"]

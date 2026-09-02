@@ -5,6 +5,7 @@ import type { Operator } from "../api/complianceTypes";
 import { Badge } from "../components/Badge";
 import { Card } from "../components/Card";
 import { OperatorPicker } from "../components/OperatorPicker";
+import { PlantsSubNav } from "../components/PlantsSubNav";
 import { TopNav } from "../components/TopNav";
 import { useCurrentOperator } from "../hooks/useCurrentOperator";
 import { useRowAction } from "../hooks/useRowAction";
@@ -195,7 +196,8 @@ export function Genetics() {
     <div className="page">
       <TopNav />
 
-      <div className="section-label">Genetics</div>
+      <div className="section-label">Plants &amp; harvest</div>
+      <PlantsSubNav />
       <Card>
         <p className="card-subtitle">Strain registry</p>
         <p className="card-footnote" style={{ marginTop: 12, paddingTop: 0, borderTop: "none" }}>

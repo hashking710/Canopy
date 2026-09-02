@@ -12,6 +12,9 @@ export function PlantsSubNav() {
       <NavLink to="/plants/packages" className={({ isActive }) => (isActive ? "active" : "")}>
         Packages &amp; testing
       </NavLink>
+      <NavLink to="/plants/genetics" className={({ isActive }) => (isActive ? "active" : "")}>
+        Genetics
+      </NavLink>
     </nav>
   );
 }

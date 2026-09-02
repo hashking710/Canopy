@@ -167,6 +167,12 @@ function ComplianceStateForm({
         Facility's compliance jurisdiction — which state's rules deadlines/testing requirements above are computed
         from. {explicitlySet ? "Explicitly set by an operator." : "Not yet explicitly set — using the server's default."}
       </p>
+      <p className="form-error" role="note" style={{ marginBottom: 12 }}>
+        This state-by-state ruleset is AI-researched from public regulatory text, not legal advice — regulations
+        change and this project's own research has been wrong before (see individual field caveats above, e.g.
+        "could not be verified"). Have a licensed attorney or compliance professional in your state review this
+        before relying on it for real licensing or compliance decisions.
+      </p>
       <div className="quick-form">
         <label>
           set to

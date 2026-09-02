@@ -7,9 +7,11 @@ PORT = 18600
 
 def set_env(monkeypatch, **overrides):
     env = {
-        "CANOPY_WEEDMAPS_API_KEY": "wm-key-abc",
-        "CANOPY_WEEDMAPS_LOCATION_ID": "loc-1",
-        "CANOPY_WEEDMAPS_BASE_URL": f"http://127.0.0.1:{PORT}",
+        "CANOPY_WEEDMAPS_CLIENT_ID": "client-abc",
+        "CANOPY_WEEDMAPS_CLIENT_SECRET": "secret-xyz",
+        "CANOPY_WEEDMAPS_MENU_ID": "menu-1",
+        "CANOPY_WEEDMAPS_TOKEN_URL": f"http://127.0.0.1:{PORT}/auth/token",
+        "CANOPY_WEEDMAPS_BASE_URL": f"http://127.0.0.1:{PORT}/wm",
     }
     env.update(overrides)
     for key, value in env.items():
@@ -17,33 +19,43 @@ def set_env(monkeypatch, **overrides):
 
 
 class RecordingServer:
-    """A real local HTTP server (not a mock) that records every request it
-    receives and replies 200 — same pattern the METRC compliance-sync plugin's
+    """A real local HTTP server (not a mock) serving both the OAuth2 token endpoint
+    and the menu-item upsert endpoint, recording every request — same "real local
+    server, no live account" verification pattern the METRC compliance-sync plugin's
     own tests use."""
 
     def __init__(self):
         self.requests: list[dict] = []
-        self.status = 200
+        self.item_status = 200
+        self.token_status = 200
+        self.token_expires_in = 1209600  # 14 days, matches Weedmaps' documented default
 
-    async def handler(self, request: web.Request):
+    async def token_handler(self, request: web.Request):
+        body = await request.json()
+        self.requests.append({"path": request.path, "method": request.method, "body": body})
+        if self.token_status != 200:
+            return web.json_response({"error": "invalid_client"}, status=self.token_status)
+        return web.json_response({"access_token": "tok-123", "expires_in": self.token_expires_in})
+
+    async def item_handler(self, request: web.Request):
         body = await request.json()
         self.requests.append(
             {
-                "method": request.method,
                 "path": request.path,
-                "query": dict(request.query),
+                "method": request.method,
                 "headers": dict(request.headers),
                 "body": body,
             }
         )
-        return web.json_response({}, status=self.status)
+        return web.json_response({}, status=self.item_status)
 
 
 @pytest.fixture
 async def server():
     rec = RecordingServer()
     app = web.Application()
-    app.router.add_route("*", "/{tail:.*}", rec.handler)
+    app.router.add_post("/auth/token", rec.token_handler)
+    app.router.add_put("/wm/menus/{menu_id}/items/external/{external_id}", rec.item_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", PORT)
@@ -71,13 +83,38 @@ def make_item(**overrides):
     return item
 
 
-async def test_pushes_one_request_per_item(server, monkeypatch):
+async def test_acquires_a_token_before_pushing(server, monkeypatch):
+    set_env(monkeypatch)
+    sync = WeedmapsMenuSync()
+    await sync.push_menu([make_item()])
+
+    token_reqs = [r for r in server.requests if r["path"] == "/auth/token"]
+    assert len(token_reqs) == 1
+    assert token_reqs[0]["body"] == {"client_id": "client-abc", "client_secret": "secret-xyz", "grant_type": "client_credentials"}
+
+
+async def test_token_is_cached_across_multiple_push_calls(server, monkeypatch):
+    set_env(monkeypatch)
+    sync = WeedmapsMenuSync()
+    await sync.push_menu([make_item()])
+    await sync.push_menu([make_item(package_id="pkg-2")])
+
+    token_reqs = [r for r in server.requests if r["path"] == "/auth/token"]
+    assert len(token_reqs) == 1  # not re-fetched for the second call
+
+
+async def test_puts_to_the_real_menu_item_endpoint(server, monkeypatch):
     set_env(monkeypatch)
     sync = WeedmapsMenuSync()
     result = await sync.push_menu([make_item(), make_item(package_id="pkg-2")])
 
     assert result == {"pushed": 2, "skipped": 0}
-    assert len(server.requests) == 2
+    item_reqs = [r for r in server.requests if r["path"] != "/auth/token"]
+    assert {r["path"] for r in item_reqs} == {
+        "/wm/menus/menu-1/items/external/pkg-1",
+        "/wm/menus/menu-1/items/external/pkg-2",
+    }
+    assert all(r["method"] == "PUT" for r in item_reqs)
 
 
 async def test_auth_header_is_bearer_token(server, monkeypatch):
@@ -85,54 +122,83 @@ async def test_auth_header_is_bearer_token(server, monkeypatch):
     sync = WeedmapsMenuSync()
     await sync.push_menu([make_item()])
 
-    assert server.requests[0]["headers"]["Authorization"] == "Bearer wm-key-abc"
+    item_req = next(r for r in server.requests if r["path"] != "/auth/token")
+    assert item_req["headers"]["Authorization"] == "Bearer tok-123"
 
 
-async def test_location_id_sent_as_query_param(server, monkeypatch):
+async def test_request_body_shape_matches_the_real_weedmaps_schema(server, monkeypatch):
     set_env(monkeypatch)
     sync = WeedmapsMenuSync()
     await sync.push_menu([make_item()])
 
-    assert server.requests[0]["query"] == {"location_id": "loc-1"}
+    body = next(r for r in server.requests if r["path"] != "/auth/token")["body"]
+    assert body["name"] == "GMO Flower"
+    assert body["genetics"] == "hybrid"
+    assert "lineage" not in body  # no real Weedmaps field for this — must not be sent
+    assert body["cannabinoids"] == [
+        {"slug": "thc", "percentage": {"min": 24.5, "max": 24.5}},
+        {"slug": "cbd", "percentage": {"min": 0.3, "max": 0.3}},
+    ]
+    variant = body["variants"][0]
+    assert variant["price"] == {"amount": 45.0, "currency": "USD"}
+    assert variant["weight"] == {"value": 453.6, "unit": "g"}
 
 
-async def test_request_body_carries_genetics_and_potency(server, monkeypatch):
+async def test_unknown_strain_type_omits_genetics_field(server, monkeypatch):
     set_env(monkeypatch)
     sync = WeedmapsMenuSync()
-    await sync.push_menu([make_item()])
+    await sync.push_menu([make_item(strain_type=None)])
 
-    body = server.requests[0]["body"]
-    assert body["external_id"] == "pkg-1"
-    assert body["strain_name"] == "GMO"
-    assert body["strain_type"] == "hybrid"
-    assert body["lineage"] == "Chemdog x Girl Scout Cookies"
-    assert body["thc_percentage"] == 24.5
-    assert body["cbd_percentage"] == 0.3
+    body = next(r for r in server.requests if r["path"] != "/auth/token")["body"]
+    assert "genetics" not in body
+
+
+async def test_no_potency_omits_cannabinoids_field(server, monkeypatch):
+    set_env(monkeypatch)
+    sync = WeedmapsMenuSync()
+    await sync.push_menu([make_item(thc_pct=None, cbd_pct=None)])
+
+    body = next(r for r in server.requests if r["path"] != "/auth/token")["body"]
+    assert "cannabinoids" not in body
 
 
 async def test_a_failed_item_is_skipped_not_fatal_to_the_rest(server, monkeypatch):
     set_env(monkeypatch)
-    server.status = 500
+    server.item_status = 500
     sync = WeedmapsMenuSync()
     result = await sync.push_menu([make_item(), make_item(package_id="pkg-2")])
 
     assert result == {"pushed": 0, "skipped": 2}
 
 
-async def test_push_menu_without_api_key_raises(monkeypatch):
-    monkeypatch.delenv("CANOPY_WEEDMAPS_API_KEY", raising=False)
+async def test_failed_token_request_raises(server, monkeypatch):
+    set_env(monkeypatch)
+    server.token_status = 401
     sync = WeedmapsMenuSync()
-    with pytest.raises(RuntimeError, match="CANOPY_WEEDMAPS_API_KEY"):
+    with pytest.raises(RuntimeError, match="token request returned HTTP 401"):
+        await sync.push_menu([make_item()])
+
+
+async def test_push_menu_without_credentials_raises(monkeypatch):
+    monkeypatch.delenv("CANOPY_WEEDMAPS_CLIENT_ID", raising=False)
+    monkeypatch.delenv("CANOPY_WEEDMAPS_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("CANOPY_WEEDMAPS_MENU_ID", raising=False)
+    sync = WeedmapsMenuSync()
+    with pytest.raises(RuntimeError, match="CANOPY_WEEDMAPS_CLIENT_ID"):
         await sync.push_menu([make_item()])
 
 
 def test_plugin_metadata_is_set():
     assert WeedmapsMenuSync.plugin_name == "Weedmaps"
-    assert "CANOPY_WEEDMAPS_API_KEY" in WeedmapsMenuSync.required_env_vars
+    assert "CANOPY_WEEDMAPS_CLIENT_ID" in WeedmapsMenuSync.required_env_vars
+    assert "CANOPY_WEEDMAPS_CLIENT_SECRET" in WeedmapsMenuSync.required_env_vars
+    assert "CANOPY_WEEDMAPS_MENU_ID" in WeedmapsMenuSync.required_env_vars
 
 
-def test_missing_api_key_warns_but_does_not_crash(monkeypatch, caplog):
-    monkeypatch.delenv("CANOPY_WEEDMAPS_API_KEY", raising=False)
+def test_missing_credentials_warns_but_does_not_crash(monkeypatch, caplog):
+    monkeypatch.delenv("CANOPY_WEEDMAPS_CLIENT_ID", raising=False)
+    monkeypatch.delenv("CANOPY_WEEDMAPS_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("CANOPY_WEEDMAPS_MENU_ID", raising=False)
     with caplog.at_level("WARNING"):
         WeedmapsMenuSync()
-    assert "isn't set" in caplog.text
+    assert "aren't all set" in caplog.text

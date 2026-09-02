@@ -58,9 +58,9 @@ RULES = StateComplianceRules(
     retail=RetailRules(
         recreational_allowed=True,  # 935 CMR 500 (adult-use regime), read directly
         recreational_purchase_limits=(
-            PurchaseLimit(1, "ounces_flower", "per_day", "935 CMR 500.140(3)(a) & (4)(c), read directly from the current (4/24/2026) regulation PDF: same 1oz cap applies per-transaction AND per-day. A WebSearch claimed the cap rose to 2oz effective ~4/17/2026 citing an 'Act Modernizing the Commonwealth's Cannabis Laws' — the directly-fetched current text (dated AFTER that claimed change) unambiguously still reads '1 ounce'; treating the 2oz claim as a search-summary error and trusting the primary text read directly, but flagging since this is a very recent, actively-changing area worth a follow-up check"),
-            PurchaseLimit(5, "grams_concentrate", "per_day", "935 CMR 500.140(3)(a)(1), read directly: THC-equivalent to 1oz flower"),
-            PurchaseLimit(500, "mg_thc_edible", "per_day", "935 CMR 500.140(3)(a)(2), read directly: THC-equivalent to 1oz flower"),
+            PurchaseLimit(2, "ounces_flower", "per_day", "CORRECTED this pass: the prior '1oz, confirmed against a 4/24/2026 PDF' finding was overtaken by events roughly contemporaneously — Gov. Healey signed H.5350 ('An Act Modernizing the Commonwealth's Cannabis Laws') on 4/19/2026, and the Cannabis Control Commission's own Bulletin No. 1 (masscannabiscontrol.com, dated 4/17/2026, read directly) states the possession/purchase limit for adults 21+ 'increases from 1 ounce to 2 ounces, or its equivalent in Marijuana concentrate, as the result of a licensed sale or gifting,' effective immediately upon signature per the official mass.gov press release ('Governor Healey Signs Cannabis Reform Legislation'). Treated as primary_source: this is the Commission's own official bulletin implementing an enacted, signed law, not a search-summary or vendor blog — but the underlying CMR 500.140 text itself may not be reprinted yet, since the Commission's bulletin explicitly says new regulations codifying the conversion standards are still to be promulgated; a maintainer should re-confirm 935 CMR 500.140's literal text once that rulemaking completes"),
+            PurchaseLimit(10, "grams_concentrate", "per_day", "CCC Bulletin No. 1 (4/17/2026), read directly: '2 ounces of Marijuana flower should be understood to be equivalent to ... 10 grams of active THC in Marijuana concentrate' — doubled from the prior 5g figure, same primary_source basis as the flower limit above"),
+            PurchaseLimit(1000, "mg_thc_edible", "per_day", "CCC Bulletin No. 1 (4/17/2026), read directly: '...1,000 mg of active THC in edibles' — doubled from the prior 500mg figure, same primary_source basis as the flower limit above"),
         ),
         recreational_min_age=21,  # 935 CMR 500.140(2)(a), read directly: "An individual shall not be
         # admitted to the Premises, unless the Marijuana Retailer has verified that the individual is 21
@@ -94,9 +94,9 @@ RULES = StateComplianceRules(
             "attaches to inventory generically rather than a standalone 'record every sale within N seconds' "
             "clause, but combined with the transaction-blocking requirement this is a solid finding."
         ),
-        confidence="primary_source",  # every fact read directly from the current 935 CMR 500/501 PDFs, with
-        # one explicitly flagged conflict (the 1oz-vs-2oz search-summary discrepancy) resolved in favor of
-        # the directly-fetched primary text
+        confidence="primary_source",  # every fact read directly from the current 935 CMR 500/501 PDFs or, for
+        # the 2026 purchase-limit increase, the CCC's own official bulletin implementing signed legislation —
+        # see the flower-limit field's note for the full correction story
         notes="",
     ),
     notes=(

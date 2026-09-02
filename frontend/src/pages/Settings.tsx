@@ -95,7 +95,7 @@ function MenuSyncCard() {
       <p className="card-subtitle">POS / menu sync</p>
       <p className="stat-label" style={{ margin: "4px 0 12px" }}>
         Pushes current inventory — including genetics and THC/CBD potency, see the{" "}
-        <Link to="/genetics">Genetics</Link> page — to a point-of-sale or menu listing service (e.g. Weedmaps) on an
+        <Link to="/plants/genetics">Genetics</Link> page — to a point-of-sale or menu listing service (e.g. Weedmaps) on an
         interval. Credentials for whichever provider is active show up in the credentials card below once that
         provider is installed.
       </p>

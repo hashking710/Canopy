@@ -215,14 +215,29 @@ routers/license.py                # GET /api/license/status — BUILT, surfaces 
   never a rejection, still 200 OK — once that count exceeds `max_devices`. Admin
   endpoints require `CANOPY_LICENSE_SERVER_ADMIN_TOKEN`, with no "unset means open"
   default, unlike edge-agent/master's optional LAN-appliance auth — this is a hosted
-  service touching customer/billing data. 19 tests. Verified for real, not just against
+  service touching customer/billing data. 25 tests (grew from the original 19 as the
+  `/admin/licenses/issue` auto-issue endpoint was added). Verified for real, not just against
   `TestClient`: ran the actual service with `uvicorn`, registered a license over real
   HTTP, then ran `canopy_license`'s real (non-mocked) check-in client against it three
   times with three different hardware IDs on a 2-device license — the third genuinely
   came back `over_limit` from the live server.
-- **Not built**: actually deploying either closed-source piece anywhere (both only run
-  locally so far) and a real production keypair (`CANOPY_PUBLIC_KEY_HEX` is still the
-  placeholder constant, and no secrets manager holds a real private key yet).
+- **Also built, since this doc was first written**: a real, non-placeholder Ed25519
+  production keypair exists — `canopy-license`'s `CANOPY_PUBLIC_KEY_HEX` and
+  `canopy-license-server`'s `CANOPY_PRIVATE_KEY_HEX` were cryptographically verified
+  (an actual sign/verify round-trip, not a string comparison) to be a real matching
+  pair, not the placeholder. `canopy-license-server` also gained a
+  `POST /admin/licenses/issue` endpoint (auto-issues + registers a license in one
+  call, rather than requiring `tools/issue_license.py` run separately then
+  `POST /admin/licenses`) and a Stripe-driven auto-issue path wired from
+  `canopy-website`, plus a merged local docker-compose stack alongside
+  `canopy-website`/`canopy-community-bot`/a demo instance and Caddy — none of which
+  this doc described when first written. The website half (`canopy.hkdev.run`) is
+  live and reachable. **Still not done**: the check-in service's own public domain
+  (`canopyapi.hkdev.run`) has no DNS pointed at it yet, so devices in the field can't
+  reach it even though the service itself works (verified locally); secrets
+  (`CANOPY_PRIVATE_KEY_HEX`, the admin token, Stripe/Resend/Discord keys) still live
+  in a plaintext `.env` on the server rather than a real secrets manager/KMS as this
+  doc originally called for — flagged, not yet migrated.
 
 ## Decisions log
 

@@ -3,7 +3,7 @@ import pytest
 from canopy_agent.compliance_rules import get_rules
 from canopy_agent.compliance_rules.registry import list_states
 
-EXPECTED_STATES = {"AZ", "CA", "CO", "IL", "MD", "MA", "MI", "MO", "NV", "OH", "OK"}
+EXPECTED_STATES = {"AZ", "CA", "CO", "FL", "IL", "MD", "MA", "MI", "MO", "NV", "NJ", "NY", "OH", "OK"}
 
 
 def test_defaults_to_california():
@@ -80,4 +80,7 @@ def test_some_states_have_no_deadline_found_rather_than_unresearched():
     # unresearched one — "unknown" remains a real literal for any future state added
     # without research yet, it's just not exercised by the current 11.
     assert kinds["AZ"] == "no_deadline_found"
+    # New York, New Jersey, and Florida (added in a later research pass) also have
+    # confirmed deadline_kind values rather than "unknown" — see their respective
+    # modules' deadline_confidence comments for the specific shape each uses.
     assert "unknown" not in kinds.values()

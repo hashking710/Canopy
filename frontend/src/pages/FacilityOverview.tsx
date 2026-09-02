@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, connectLiveUpdates } from "../api/client";
+import { complianceApi } from "../api/complianceClient";
 import { AddRoomForm } from "../components/AddRoomForm";
 import { EntityCard } from "../components/EntityCard";
 import { FacilitySummary } from "../components/FacilitySummary";
 import { LiveConnectionNotice } from "../components/LiveConnectionNotice";
+import { OnboardingWizard } from "../components/OnboardingWizard";
 import { OperatorPicker } from "../components/OperatorPicker";
-import { SetupFacilityForm } from "../components/SetupFacilityForm";
 import { TopNav } from "../components/TopNav";
 import { useCurrentOperator } from "../hooks/useCurrentOperator";
 import type { Room } from "../types";
@@ -36,6 +37,7 @@ export function FacilityOverview() {
   const [error, setError] = useState<string | null>(null);
   const [notSetUp, setNotSetUp] = useState(false);
   const [liveConnected, setLiveConnected] = useState(true);
+  const [jurisdictionSet, setJurisdictionSet] = useState(true); // optimistic until loaded — avoids a flash of the nudge
   const {
     operators,
     currentOperatorId,
@@ -65,6 +67,10 @@ export function FacilityOverview() {
   useEffect(load, []);
 
   useEffect(() => {
+    complianceApi.getStateRules().then((r) => setJurisdictionSet(r.explicitly_set));
+  }, []);
+
+  useEffect(() => {
     const disconnect = connectLiveUpdates((msg) => {
       setRooms((prev) => prev.map((room) => (room.id === msg.room_id ? { ...room, stats: msg.stats } : room)));
     }, setLiveConnected);
@@ -77,7 +83,7 @@ export function FacilityOverview() {
       <div className="page">
         <TopNav />
         <div className="section-label">Get started</div>
-        <SetupFacilityForm onCreated={load} />
+        <OnboardingWizard onFinished={load} />
       </div>
     );
   }
@@ -89,6 +95,19 @@ export function FacilityOverview() {
     <div className="page">
       <TopNav />
       <LiveConnectionNotice connected={liveConnected} />
+      {(operators.length === 0 || !jurisdictionSet) && (
+        <p className="card-footnote" role="note" style={{ margin: "0 0 16px" }}>
+          Still finishing setup?
+          {operators.length === 0 && " Register yourself as an operator below so actions can be attributed to you."}
+          {operators.length === 0 && !jurisdictionSet && " "}
+          {!jurisdictionSet && (
+            <>
+              Set your compliance jurisdiction on the <Link to="/compliance">Compliance</Link> page if you're a
+              licensed commercial grower.
+            </>
+          )}
+        </p>
+      )}
 
       <div className="section-label">{facility.section ?? "The facility"}</div>
       <FacilitySummary facility={facility} />

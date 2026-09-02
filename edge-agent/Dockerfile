@@ -42,6 +42,21 @@ COPY plugins/canopy-adapter-aranet4 /plugins/canopy-adapter-aranet4
 COPY plugins/canopy-adapter-tuya /plugins/canopy-adapter-tuya
 COPY plugins/canopy-adapter-rachio /plugins/canopy-adapter-rachio
 COPY plugins/canopy-adapter-rainmachine /plugins/canopy-adapter-rainmachine
+# Six more cloud/LAN adapters — same "ships by default, entirely inert unless a
+# room actually uses it" posture as everything above. meter-zentra and hobolink are
+# real, confirmed-against-published-docs implementations. priva has a real,
+# confirmed OAuth2 token flow but an unimplemented telemetry read (needs a real
+# account to confirm the request shape). growlink, argus, and pulsegrow are
+# scaffolds only, same as canopy-adapter-trolmaster — real vendor infrastructure
+# confirmed to exist, but read() raises NotImplementedError until real account
+# access exists to confirm the exact protocol against. See each package's own
+# docstring.
+COPY plugins/canopy-adapter-meter-zentra /plugins/canopy-adapter-meter-zentra
+COPY plugins/canopy-adapter-hobolink /plugins/canopy-adapter-hobolink
+COPY plugins/canopy-adapter-priva /plugins/canopy-adapter-priva
+COPY plugins/canopy-adapter-growlink /plugins/canopy-adapter-growlink
+COPY plugins/canopy-adapter-argus /plugins/canopy-adapter-argus
+COPY plugins/canopy-adapter-pulsegrow /plugins/canopy-adapter-pulsegrow
 # Compliance-sync plugin, not a sensor adapter — inert unless
 # CANOPY_COMPLIANCE_SYNC=metrc and real METRC credentials are set. See its own
 # docstring for exactly which operations are implemented against a confirmed
@@ -49,8 +64,9 @@ COPY plugins/canopy-adapter-rainmachine /plugins/canopy-adapter-rainmachine
 COPY plugins/canopy-compliancesync-metrc /plugins/canopy-compliancesync-metrc
 # Menu-sync plugins — inert unless CANOPY_MENU_SYNC is set to one of them. The mock
 # one has zero external dependency and is a real, usable "generic POS" out of the
-# box; the Weedmaps one needs CANOPY_WEEDMAPS_API_KEY (see its own docstring for its
-# unverified-against-a-real-account caveat).
+# box; the Weedmaps one needs CANOPY_WEEDMAPS_CLIENT_ID/_CLIENT_SECRET/_MENU_ID and,
+# per its own docstring, real Weedmaps integration-partner approval (their
+# onboarding is currently paused) before it can actually go live.
 COPY plugins/canopy-menusync-mock /plugins/canopy-menusync-mock
 COPY plugins/canopy-menusync-weedmaps /plugins/canopy-menusync-weedmaps
 
@@ -72,6 +88,12 @@ RUN pip install --no-cache-dir . \
     /plugins/canopy-adapter-tuya \
     /plugins/canopy-adapter-rachio \
     /plugins/canopy-adapter-rainmachine \
+    /plugins/canopy-adapter-meter-zentra \
+    /plugins/canopy-adapter-hobolink \
+    /plugins/canopy-adapter-priva \
+    /plugins/canopy-adapter-growlink \
+    /plugins/canopy-adapter-argus \
+    /plugins/canopy-adapter-pulsegrow \
     /plugins/canopy-compliancesync-metrc \
     /plugins/canopy-menusync-mock \
     /plugins/canopy-menusync-weedmaps
