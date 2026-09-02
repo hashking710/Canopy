@@ -117,6 +117,12 @@ fi
 # --- Bring the stack up ----------------------------------------------------
 
 cd "$INSTALL_DIR"
+# Bakes the running commit into the image so the dashboard's "check for updates"
+# button (Settings -> Updates) has something real to compare against — see
+# edge-agent/Dockerfile's CANOPY_GIT_SHA arg and routers/version.py. Empty (not
+# "unknown") for a tarball install with no .git directory; the dashboard already
+# treats an empty/unknown current version as "can't check," not a false negative.
+export CANOPY_GIT_SHA="$([[ -d .git ]] && git rev-parse HEAD 2>/dev/null || true)"
 log "Starting Canopy (docker compose up -d --build ${COMPOSE_PROFILE_ARGS[*]-})"
 $DOCKER compose up -d --build "${COMPOSE_PROFILE_ARGS[@]}"
 

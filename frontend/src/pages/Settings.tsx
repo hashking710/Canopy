@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type BackupStatus, type MenuSyncStatus, type SecretInfo } from "../api/client";
+import { api, type BackupStatus, type MenuSyncStatus, type SecretInfo, type UpdateCheckResult, type VersionInfo } from "../api/client";
 import { Card } from "../components/Card";
 import { OperatorPicker } from "../components/OperatorPicker";
 import { TopNav } from "../components/TopNav";
@@ -57,6 +57,70 @@ function BackupsCard() {
         {submitting ? "backing up…" : "back up now"}
       </button>
       {runError && <p className="form-error" role="alert">{runError}</p>}
+    </Card>
+  );
+}
+
+function UpdatesCard() {
+  const [version, setVersion] = useState<VersionInfo | null>(null);
+  const [result, setResult] = useState<UpdateCheckResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { submitting, error: checkError, run } = useSubmitState();
+
+  useEffect(() => {
+    api.getVersion().then(setVersion).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  const checkNow = () =>
+    run(async () => {
+      setResult(await api.checkForUpdates());
+    });
+
+  const commitUrl = (sha: string) => `https://github.com/${version?.repo ?? "hashking710/Canopy"}/commit/${sha}`;
+
+  return (
+    <Card>
+      <p className="card-subtitle">Updates</p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {!error && !version && <p className="stat-label">Loading…</p>}
+      {version && (
+        <p className="stat-label" style={{ margin: "4px 0 12px" }}>
+          Running:{" "}
+          {version.short_sha ? (
+            <a href={commitUrl(version.sha!)} target="_blank" rel="noreferrer">
+              <code>{version.short_sha}</code>
+            </a>
+          ) : (
+            "a local/dev build with no version baked in — can't check for updates"
+          )}
+        </p>
+      )}
+      {version?.short_sha && (
+        <button className="inline-button" onClick={checkNow} disabled={submitting}>
+          {submitting ? "checking…" : "check for updates"}
+        </button>
+      )}
+      {checkError && <p className="form-error" role="alert">{checkError}</p>}
+      {result && !result.checked && <p className="stat-label" style={{ marginTop: 8 }}>{result.reason}</p>}
+      {result?.checked && result.up_to_date && (
+        <p className="stat-label" style={{ marginTop: 8 }}>You're up to date.</p>
+      )}
+      {result?.checked && !result.up_to_date && (
+        <div style={{ marginTop: 8 }}>
+          <p className="form-error" style={{ margin: "0 0 8px" }}>
+            {result.commits_behind} commit{result.commits_behind === 1 ? "" : "s"} behind —{" "}
+            <a href={result.compare_url} target="_blank" rel="noreferrer">
+              view what changed
+            </a>
+          </p>
+          <p className="stat-label">
+            To update: on the machine running Canopy, re-run the installer with{" "}
+            <code>./deploy/install.sh --upgrade</code>, or if you set it up manually,{" "}
+            <code>git pull &amp;&amp; docker compose up -d --build</code>. This page can't apply the update itself
+            — it has no access to the host's Docker.
+          </p>
+        </div>
+      )}
     </Card>
   );
 }
@@ -344,6 +408,7 @@ export function Settings() {
       <MenuSyncCard />
       <CredentialsCard />
       <BackupsCard />
+      <UpdatesCard />
     </div>
   );
 }

@@ -25,7 +25,7 @@ if sys.platform == "win32":
 from canopy_agent.auth import require_token
 from canopy_agent.db import SessionLocal
 from canopy_agent.migrate import upgrade_to_head
-from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, menu_sync as menu_sync_router, operators, rooms, secrets as secrets_router, strains as strains_router, ws
+from canopy_agent.routers import alerts, backup as backup_router, compliance, facility, health as health_router, license as license_router, menu_sync as menu_sync_router, operators, rooms, secrets as secrets_router, strains as strains_router, version as version_router, ws
 from canopy_agent.seed import seed
 from canopy_agent.seed_compliance import seed_compliance
 from canopy_agent.services.audit_relay import subscribe_relay_forever
@@ -156,4 +156,5 @@ app.include_router(backup_router.router, dependencies=[Depends(require_token)])
 app.include_router(secrets_router.router, dependencies=[Depends(require_token)])
 app.include_router(strains_router.router, dependencies=[Depends(require_token)])
 app.include_router(menu_sync_router.router, dependencies=[Depends(require_token)])
+app.include_router(version_router.router, dependencies=[Depends(require_token)])
 app.include_router(health_router.router)  # no require_token — see health.py's own docstring

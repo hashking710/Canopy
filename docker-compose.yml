@@ -14,6 +14,10 @@ services:
     build:
       context: .
       dockerfile: edge-agent/Dockerfile
+      args:
+        # Empty when unset (e.g. a plain `docker compose up` outside install.sh) —
+        # the Dockerfile's own ARG default ("unknown") takes over in that case.
+        CANOPY_GIT_SHA: ${CANOPY_GIT_SHA:-}
     ports: ["8000:8000"]
     environment:
       - CANOPY_DATA_DIR=/data

@@ -1085,6 +1085,18 @@ live curl/Playwright checks); nothing in this section is a stub.
   `prefers-color-scheme` until the user picks explicitly, and keeps following OS changes
   live until they do. Verified visually across the facility overview, compliance, and
   alerts pages (badges, tables, forms, scan input all re-themed correctly via tokens).
+- **Update checking (built)**: `deploy/install.sh` exports `CANOPY_GIT_SHA` (from
+  `git rev-parse HEAD`) before `docker compose up --build`, which `edge-agent/Dockerfile`
+  bakes in as a build arg/env var. `routers/version.py`'s `GET /api/version` reports it
+  instantly (no network call); `GET /api/version/check` compares it against the tip of
+  `main` via GitHub's compare API (`ahead_by` = commits behind) — manual, on-demand only,
+  triggered by Settings.tsx's "check for updates" button, never scheduled. Deliberately
+  doesn't apply the update itself: the container has no access to the host's git checkout
+  or Docker socket, and shouldn't be given one just for this — the card instead links to
+  what changed and states the exact command (`install.sh --upgrade`, or
+  `git pull && docker compose up -d --build`) to run on the host. A manual/local
+  `docker build` with no `CANOPY_GIT_SHA` passed through reports `sha: null` and the
+  button doesn't render — no false "up to date" for a build nobody can actually verify.
 
 ## Production-readiness pass — logging, error reporting, rate limiting, roles (built)
 

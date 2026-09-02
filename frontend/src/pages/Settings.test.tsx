@@ -5,17 +5,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
 import { TIMEZONE_KEY } from "../hooks/useSettings";
 
-const { getBackupStatus, runBackupNow, getSecrets, setSecret, clearSecret, getOperators, getMenuSyncStatus, runMenuSyncNow } =
-  vi.hoisted(() => ({
-    getBackupStatus: vi.fn(),
-    runBackupNow: vi.fn(),
-    getSecrets: vi.fn(),
-    setSecret: vi.fn(),
-    clearSecret: vi.fn(),
-    getOperators: vi.fn(),
-    getMenuSyncStatus: vi.fn(),
-    runMenuSyncNow: vi.fn(),
-  }));
+const {
+  getBackupStatus,
+  runBackupNow,
+  getSecrets,
+  setSecret,
+  clearSecret,
+  getOperators,
+  getMenuSyncStatus,
+  runMenuSyncNow,
+  getVersion,
+  checkForUpdates,
+} = vi.hoisted(() => ({
+  getBackupStatus: vi.fn(),
+  runBackupNow: vi.fn(),
+  getSecrets: vi.fn(),
+  setSecret: vi.fn(),
+  clearSecret: vi.fn(),
+  getOperators: vi.fn(),
+  getMenuSyncStatus: vi.fn(),
+  runMenuSyncNow: vi.fn(),
+  getVersion: vi.fn(),
+  checkForUpdates: vi.fn(),
+}));
 
 vi.mock("../api/client", () => ({
   api: {
@@ -26,6 +38,8 @@ vi.mock("../api/client", () => ({
     clearSecret: (...args: unknown[]) => clearSecret(...args),
     getMenuSyncStatus: (...args: unknown[]) => getMenuSyncStatus(...args),
     runMenuSyncNow: (...args: unknown[]) => runMenuSyncNow(...args),
+    getVersion: (...args: unknown[]) => getVersion(...args),
+    checkForUpdates: (...args: unknown[]) => checkForUpdates(...args),
   },
 }));
 
@@ -63,6 +77,7 @@ describe("Settings", () => {
       last_result: {},
       last_error: null,
     });
+    getVersion.mockResolvedValue({ sha: "abc1234def5678", short_sha: "abc1234", repo: "hashking710/Canopy" });
   });
 
   afterEach(() => {
@@ -178,6 +193,58 @@ describe("Settings", () => {
 
       await waitFor(() => expect(runMenuSyncNow).toHaveBeenCalledWith("op-1"));
       expect(await screen.findByText(/2 pushed, 0 skipped/)).toBeInTheDocument();
+    });
+  });
+
+  describe("updates", () => {
+    it("shows the running version and lets you check for updates", async () => {
+      const user = userEvent.setup();
+      checkForUpdates.mockResolvedValue({ checked: true, up_to_date: true });
+      renderPage();
+
+      expect(await screen.findByText("abc1234")).toBeInTheDocument();
+      await user.click(screen.getByText("check for updates"));
+
+      expect(await screen.findByText("You're up to date.")).toBeInTheDocument();
+    });
+
+    it("shows how far behind and a link to what changed", async () => {
+      const user = userEvent.setup();
+      checkForUpdates.mockResolvedValue({
+        checked: true,
+        up_to_date: false,
+        commits_behind: 3,
+        latest_short_sha: "def5678",
+        compare_url: "https://github.com/hashking710/Canopy/compare/abc1234def5678...main",
+      });
+      renderPage();
+      await screen.findByText("abc1234");
+      await user.click(screen.getByText("check for updates"));
+
+      expect(await screen.findByText(/3 commits behind/)).toBeInTheDocument();
+      expect(screen.getByText("view what changed")).toHaveAttribute(
+        "href",
+        "https://github.com/hashking710/Canopy/compare/abc1234def5678...main",
+      );
+      expect(screen.getByText(/install\.sh --upgrade/)).toBeInTheDocument();
+    });
+
+    it("shows the reason when a check can't be completed", async () => {
+      const user = userEvent.setup();
+      checkForUpdates.mockResolvedValue({ checked: false, reason: "couldn't reach GitHub: timeout" });
+      renderPage();
+      await screen.findByText("abc1234");
+      await user.click(screen.getByText("check for updates"));
+
+      expect(await screen.findByText("couldn't reach GitHub: timeout")).toBeInTheDocument();
+    });
+
+    it("has no check-for-updates button for a build with no version baked in", async () => {
+      getVersion.mockResolvedValue({ sha: null, short_sha: null, repo: "hashking710/Canopy" });
+      renderPage();
+
+      expect(await screen.findByText(/local\/dev build with no version baked in/)).toBeInTheDocument();
+      expect(screen.queryByText("check for updates")).not.toBeInTheDocument();
     });
   });
 

@@ -120,6 +120,22 @@ export interface MenuSyncProvider {
   plugin_description: string;
 }
 
+export interface VersionInfo {
+  sha: string | null;
+  short_sha: string | null;
+  repo: string;
+}
+
+export interface UpdateCheckResult {
+  checked: boolean;
+  reason?: string;
+  up_to_date?: boolean;
+  commits_behind?: number;
+  latest_sha?: string;
+  latest_short_sha?: string;
+  compare_url?: string;
+}
+
 export interface MenuSyncStatus {
   active_provider: string;
   available_providers: MenuSyncProvider[];
@@ -159,6 +175,8 @@ export const api = {
     sendJson<{ key: string; is_set: boolean }>("PUT", `/api/secrets/${key}`, { value, operator_id: operatorId, pin }),
   clearSecret: (key: string, operatorId: string, pin?: string) =>
     sendJson<{ key: string; is_set: boolean }>("DELETE", `/api/secrets/${key}`, { operator_id: operatorId, pin }),
+  getVersion: () => getJson<VersionInfo>("/api/version"),
+  checkForUpdates: () => getJson<UpdateCheckResult>("/api/version/check"),
   getMenuSyncStatus: () => getJson<MenuSyncStatus>("/api/menu-sync/status"),
   // Menu sync is role-gated (role >= "operator", see routers/menu_sync.py).
   runMenuSyncNow: (operatorId: string) =>

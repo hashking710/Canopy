@@ -4,6 +4,15 @@
 
 FROM python:3.12-slim
 
+# Baked in at build time (see docker-compose.yml's build.args and deploy/install.sh,
+# which export this from `git rev-parse HEAD` before building) so the running
+# container can report its own version — see routers/version.py. Defaults to
+# "unknown" for a manual `docker build`/local dev image with no git context passed
+# through; the version UI treats that as "can't check for updates" rather than
+# guessing.
+ARG CANOPY_GIT_SHA=unknown
+ENV CANOPY_GIT_SHA=$CANOPY_GIT_SHA
+
 WORKDIR /app
 
 COPY edge-agent/pyproject.toml ./

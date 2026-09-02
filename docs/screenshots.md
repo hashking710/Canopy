@@ -74,7 +74,8 @@ work once it exists as a separate package.
 ![Settings page — timezone and default temperature-unit preferences, and local rotating backups](screenshots/09-settings.png)
 
 Per-device timezone/unit preferences, plus manual and automatic rotating backups with
-a documented restore path.
+a documented restore path. The Updates card at the bottom shows the exact commit this
+install is running and checks GitHub for how far behind `main` it is, on demand.
 
 ## Master control panel
 
