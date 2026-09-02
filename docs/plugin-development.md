@@ -196,6 +196,23 @@ A few more, each demonstrating a different situation you'll likely hit:
 - **A timeout**: `read()` gets 10 seconds. Design for that — if a device's API is
   sometimes slow, cache aggressively rather than blocking.
 
+## Adapters that need your help
+
+A handful of adapter scaffolds have real, sourced groundwork (confirmed vendor auth
+mechanism, confirmed API existence) but can't be finished without a real account or
+device to confirm the exact request/response shape against — see each plugin's own
+module docstring for exactly what's confirmed vs. not. If you have one of these,
+finishing the adapter is likely a small, contained PR:
+
+- [Growlink (#1)](https://github.com/hashking710/Canopy/issues/1) — cannabis-specific
+  cloud API, developer-portal signup needed to see the endpoint reference.
+- [Argus Controls / Titan-Axia (#2)](https://github.com/hashking710/Canopy/issues/2) —
+  local GET-only API on Titan 900-series gateways, no public technical reference.
+- [Pulse Grow (#3)](https://github.com/hashking710/Canopy/issues/3) — real cloud API,
+  reference docs are JS-rendered and weren't reachable to confirm the request shape.
+- [Priva (#4)](https://github.com/hashking710/Canopy/issues/4) — the OAuth2 token
+  flow is real and working; only the telemetry-read endpoint itself is missing.
+
 ## What the core does *not* guarantee (yet)
 
 This is in-process plugin loading (chosen over out-of-process sandboxing for lower

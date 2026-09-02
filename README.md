@@ -19,6 +19,7 @@
   <a href="https://canopy.hkdev.run">Website</a> ·
   <a href="https://cdemo.hkdev.run">Live demo</a> ·
   <a href="docs/screenshots.md">Screenshots</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="https://ko-fi.com/hashking">Support on Ko-fi</a>
 </p>
 
@@ -27,10 +28,13 @@ control panel. See [docs/architecture.md](docs/architecture.md) for the full
 roadmap.
 
 Phase 1 (mocked sensor data + dashboard UI) is done. Phase 2 (real sensor adapters —
-14 plugins covering cloud, local-network, BLE, GPIO/I2C, and Modbus devices) is
-largely built, with per-adapter hardware verification the main thing still
-outstanding; compliance/track-and-trace tracking is built end-to-end, including a
-real (partial) METRC sync plugin, not yet exercised against a live METRC account.
+23 plugins covering cloud, local-network, BLE, GPIO/I2C, and Modbus devices, plus
+enterprise climate-computer integrations for Priva/Argus/Growlink) is largely built,
+with per-adapter hardware verification the main thing still outstanding (see
+[docs/plugin-development.md](docs/plugin-development.md#adapters-that-need-your-help)
+for the handful still needing a real vendor account to finish); compliance/
+track-and-trace tracking is built end-to-end, including a real (partial) METRC sync
+plugin, not yet exercised against a live METRC account.
 Phase 3 (MQTT chaining + master panel, including multi-site aggregation and
 broker bridging for
 intermittent-uplink sites) is done and verified with two real sites against a real
@@ -333,6 +337,8 @@ reverse proxy with a real certificate for anything reachable beyond your LAN.
   (credentials + optional TLS) for a real multi-site deployment.
 - [docs/discord-alerts.md](docs/discord-alerts.md) — wiring alert notifications to
   a Discord webhook.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to submit a change, plus a punch list of
+  adapters that need a real vendor account to finish.
 
 ## License
 

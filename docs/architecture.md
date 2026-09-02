@@ -305,7 +305,10 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
     read endpoint isn't — Priva's API is provisioned per-customer (a fixed base URL
     can't even be hardcoded) and its reference docs are behind an account login.
     `read()` runs the real token acquisition, then raises `NotImplementedError`
-    naming exactly what a real account would be needed to confirm.
+    naming exactly what a real account would be needed to confirm. Tracked in
+    [issue #4](https://github.com/hashking710/Canopy/issues/4) — if you have a Priva
+    account with the Realtime Data API add-on, that's the fastest path to finishing
+    this one.
   - **`growlink`, `argus`, `pulsegrow`** — scaffolds, same posture as the
     pre-existing `trolmaster` adapter: real vendor infrastructure confirmed to exist
     (Growlink's cannabis-specific Azure-APIM-backed developer portal; Argus
@@ -313,7 +316,11 @@ same "many possible, don't want to maintain them all" situation as sensor adapte
     official datasheet; Pulse Grow's live `api.pulsegrow.com` API with in-app-issued
     keys) but no publicly reachable endpoint reference for any of the three — each
     `read()` raises `NotImplementedError` with a specific, sourced explanation of
-    what's blocking it, never a guessed request shape presented as working.
+    what's blocking it, never a guessed request shape presented as working. Each has
+    its own tracking issue asking for help from anyone with a real vendor account:
+    [Growlink (#1)](https://github.com/hashking710/Canopy/issues/1),
+    [Argus (#2)](https://github.com/hashking710/Canopy/issues/2),
+    [Pulse Grow (#3)](https://github.com/hashking710/Canopy/issues/3).
   - Corrections from this same research pass: the pre-existing `trolmaster` and
     `ac_infinity` adapters' approaches were independently re-verified and found
     still accurate — no changes needed. Fluence/Signify GrowWise-brand lighting
