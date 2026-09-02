@@ -76,10 +76,9 @@ RULES = StateComplianceRules(
             "Cal. Code Regs. tit. 4, §15049(b), read directly from the official DCC PDF: 'Each of the "
             "following activities shall be recorded in the track and trace system within 24 hours of "
             "occurrence,' and (b)(8) explicitly lists 'Sale or donation of cannabis or cannabis products' as "
-            "one of those activities — the SAME 24-hour-deadline pattern already established for California's "
+            "one of those activities — the same 24-hour-deadline pattern already established for California's "
             "waste-destruction reporting in the cultivation section (§15049(b)(5)), confirming it's a uniform "
-            "24-hour standard across all eight listed activities, not real-time-at-sale. A genuine, "
-            "well-sourced correction to any assumption that CA requires live POS sync."
+            "24-hour standard across all eight listed activities, not real-time-at-sale."
         ),
         confidence="primary_source",  # every fact above read directly from the official DCC-hosted
         # consolidated regulations PDF (cdn.cannabis.ca.gov, Revised Jan. 1, 2026 edition)
