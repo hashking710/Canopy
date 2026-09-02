@@ -86,6 +86,34 @@ export function License() {
           </div>
         )}
       </Card>
+
+      {status.tier === "unlicensed" && (
+        <Card>
+          <p className="card-subtitle">Get a free license</p>
+          <p className="stat-label" style={{ margin: "8px 0 0" }}>
+            Nothing above is gated — every feature on this device works exactly as
+            shown, license or not. Registering a free license (two devices, no card
+            required) is still worth doing: it gives this installation a real
+            customer record, and if you ever add a third device, upgrading is a
+            one-file swap instead of a fresh setup.
+          </p>
+          <a
+            href="https://canopy.hkdev.run/checkout"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-button"
+            style={{ display: "inline-block", marginTop: 12 }}
+          >
+            Get a free license →
+          </a>
+          <p className="stat-label" style={{ margin: "12px 0 0" }}>
+            Once issued, save the downloaded <code>.lic</code> file somewhere this
+            device can reach and point <code>CANOPY_LICENSE_FILE</code> at it (see{" "}
+            <code>docker-compose.yml</code>), then restart. This page will pick it
+            up automatically.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }

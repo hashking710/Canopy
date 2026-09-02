@@ -103,7 +103,7 @@ function ManageCurrentOperator({
             placeholder="email for personal notifications"
             type="email"
           />
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label className="checkbox-label">
             <input type="checkbox" checked={notifyOnAlerts} onChange={(e) => setNotifyOnAlerts(e.target.checked)} />
             room alerts
           </label>
@@ -116,7 +116,7 @@ function ManageCurrentOperator({
               ))}
             </select>
           )}
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label className="checkbox-label">
             <input
               type="checkbox"
               checked={notifyOnSystemErrors}
@@ -288,7 +288,7 @@ export function OperatorPicker({
             placeholder="notification email (optional)"
             type="email"
           />
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label className="checkbox-label">
             <input
               type="checkbox"
               checked={notifyPrefs.notify_on_alerts}
@@ -296,7 +296,7 @@ export function OperatorPicker({
             />
             room alerts
           </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label className="checkbox-label">
             <input
               type="checkbox"
               checked={notifyPrefs.notify_on_system_errors}

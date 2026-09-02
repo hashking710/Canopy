@@ -34,6 +34,10 @@ describe("License", () => {
     expect(await screen.findByText("unlicensed")).toBeInTheDocument();
     expect(screen.getByText("AlwaysUnlockedGate")).toBeInTheDocument();
     expect(screen.getByText("Features unlocked: all")).toBeInTheDocument();
+
+    const cta = screen.getByText("Get a free license →");
+    expect(cta).toBeInTheDocument();
+    expect(cta.closest("a")).toHaveAttribute("href", "https://canopy.hkdev.run/checkout");
   });
 
   it("renders the corporate shape, where features_unlocked is an array and detail fields are listed", async () => {
@@ -59,6 +63,8 @@ describe("License", () => {
     expect(screen.getByText("never_checked_in")).toBeInTheDocument();
     // last_successful_checkin is null and must be skipped, not rendered as "null"
     expect(screen.queryByText("null")).not.toBeInTheDocument();
+    // The free-license CTA is only relevant to an unlicensed device.
+    expect(screen.queryByText("Get a free license →")).not.toBeInTheDocument();
   });
 
   it("shows an inline error without crashing when the request fails", async () => {

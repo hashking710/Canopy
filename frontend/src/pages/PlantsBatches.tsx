@@ -650,7 +650,7 @@ export function PlantsBatches() {
             placeholder="search by tag, strain, or room…"
             className="plant-search-input"
           />
-          <label className="stat-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label className="stat-label checkbox-label">
             <input type="checkbox" checked={showAllPlants} onChange={(e) => setShowAllPlants(e.target.checked)} />
             show harvested/destroyed too
           </label>

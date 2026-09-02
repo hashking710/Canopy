@@ -27,6 +27,18 @@ services:
       # mqtt_enabled() gate and services/audit_relay.py's retry loop).
       - CANOPY_MQTT_HOST=mosquitto
       - CANOPY_SITE_ID=site-1
+      # Optional — a real license (even the free 2-device tier, no card required:
+      # https://canopy.hkdev.run/checkout) is never required for anything on this
+      # device to work, but registering one is worth doing anyway; see the License
+      # page. Only has an effect once the separate, closed-source `canopy-license`
+      # package is also installed — this repo's own default image doesn't include
+      # it, matching the "open source stays fully open source" design. Unset
+      # (default) is a no-op either way. To actually use one: set this to a path
+      # inside the container (e.g. /license/canopy.lic) and add a matching bind
+      # mount under `volumes:` below for wherever you saved the downloaded file —
+      # left out of the default mount list so `docker compose up` never creates an
+      # unused ./license directory for the vast majority of installs that skip this.
+      - CANOPY_LICENSE_FILE=${CANOPY_LICENSE_FILE:-}
     volumes: ["edge-agent-data:/data"]
     restart: unless-stopped
 

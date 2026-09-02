@@ -4,6 +4,7 @@ import { api, connectLiveUpdates } from "../api/client";
 import { Card } from "../components/Card";
 import { CardHeader } from "../components/CardHeader";
 import { EditRoomForm } from "../components/EditRoomForm";
+import { ExtraAdaptersCard } from "../components/ExtraAdaptersCard";
 import { LiveConnectionNotice } from "../components/LiveConnectionNotice";
 import { OperatorPicker } from "../components/OperatorPicker";
 import { Sparkline } from "../components/Sparkline";
@@ -166,6 +167,8 @@ export function RoomDetail() {
           )}
         </Card>
       )}
+
+      {!editing && <ExtraAdaptersCard roomId={room.id} currentOperator={currentOperator} />}
     </div>
   );
 }

@@ -369,7 +369,7 @@ export function Settings() {
 
         <label className="field-block">
           Timezone for dates &amp; times shown across the dashboard
-          <select value={timezone} onChange={(e) => setTimezone(e.target.value)} style={{ marginTop: 6 }}>
+          <select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
             {TIMEZONE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}

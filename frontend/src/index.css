@@ -140,6 +140,18 @@ button {
   font-family: inherit;
 }
 
+/* Bare <code> was rendering as plain browser monospace with no visual
+   distinction from surrounding text — a chip-style background is a small,
+   global fix that benefits every existing usage (Settings, License,
+   EnvVarNotice, device discovery, master sites) with no per-callsite change. */
+code {
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 0.85em;
+}
+
 .page {
   max-width: 1200px;
   margin: 0 auto;
@@ -376,9 +388,23 @@ button {
 
 .card-header-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px 16px;
+}
+
+/* Without this, a long badge (e.g. "extended-count caregiver registration")
+   squeezed a sibling subtitle/title down to almost nothing on a narrow
+   viewport — text has no natural minimum width in a flexbox by default, so
+   it kept shrinking until individual *words* were wrapping one per line
+   instead of the row wrapping as a whole. flex-wrap above lets badge and
+   text drop to their own lines once they no longer both fit; this stops
+   either one from being crushed narrower than it can actually read. */
+.card-header-row > p,
+.card-header-row > h3 {
+  min-width: 140px;
+  flex: 1 1 auto;
 }
 
 .card-title {
@@ -478,12 +504,44 @@ button {
   gap: 20px 24px;
   margin: 16px 0;
   font-size: 0.86rem;
+  align-items: start;
 }
 
 .retail-rules-grid > div {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Columns often carry wildly different amounts of citation text (a bare
+     "not a legal market" vs. several nested purchase-limit blocks with full
+     regulation quotes) — a vertical rule anchors each column as its own
+     distinct unit so uneven heights read as "different amounts of content,"
+     not as a misaligned grid. Only between columns, never trailing. */
+  padding-left: 24px;
+  border-left: 1px solid var(--border);
+}
+
+.retail-rules-grid > div:first-child {
+  padding-left: 0;
+  border-left: none;
+}
+
+/* Below this width the grid's own auto-fit collapses to one column (each
+   "column" stacks full-width instead of sitting side by side) — the
+   vertical divider above stops making sense once there's nothing beside it
+   to divide from; a horizontal rule between stacked sections reads
+   correctly instead. */
+@media (max-width: 640px) {
+  .retail-rules-grid > div {
+    padding-left: 0;
+    border-left: none;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .retail-rules-grid > div:first-child {
+    padding-top: 0;
+    border-top: none;
+  }
 }
 
 .stat-value {
@@ -542,10 +600,21 @@ button {
 
 .facility-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px 16px;
   margin-bottom: 14px;
+}
+
+/* Same fix as .card-header-row: an unconstrained flex item has no natural
+   minimum width, so a long badge next to it squeezed the subtitle down
+   until individual words were wrapping one per line. Only the first
+   (subtitle) child needs this — the badge wrapper should stay sized to its
+   own content, not stretched to match. */
+.facility-header > div:first-child {
+  min-width: 140px;
+  flex: 1 1 auto;
 }
 
 .facility-title {
@@ -776,6 +845,52 @@ button {
 .field-block {
   display: block;
   margin-top: 14px;
+}
+
+/* A bare `<label className="field-block">text<input/></label>` (the room
+   footnote, the genetics description, the timezone picker, ...) had no
+   typography of its own, so the label text rendered at plain body size —
+   visually inconsistent with every *other* field label in the app
+   (`.quick-form label` / `.adapter-config-editor label`), which all share
+   this exact small-caps treatment. One rule fixes every call site at once
+   rather than patching each form's markup individually. `label.field-block`
+   (not `.field-block > label`): the label element itself carries this
+   class directly at every one of these call sites, not a wrapping div. */
+label.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+}
+
+/* The label's own dimmed color would otherwise cascade into whatever control
+   sits inside it (color inherits by default) — reset back to full-strength
+   ink for the control itself, matching .quick-form/.adapter-config-editor's
+   identical input/select override right next to their own label rule. */
+label.field-block > input,
+label.field-block > select,
+label.field-block > textarea {
+  color: var(--ink);
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+/* A checkbox+text label needs the checkbox *beside* its text, not stacked
+   above it the way .quick-form/.adapter-config-editor's flex-column label
+   rule puts every other field's control — that mismatch had been patched
+   with an identical inline style repeated at four separate call sites
+   (OperatorPicker's two notification checkboxes, the batches page's
+   "show harvested/destroyed too") and simply missed at two more (the
+   harvests page's "production batch"/"donation" checkboxes rendered with
+   the checkbox floating above its own label instead of next to it). One
+   real class instead of a copy-pasted inline style. */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .field-block textarea {

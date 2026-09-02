@@ -409,15 +409,20 @@ function PackageHarvestForm({
           <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="auto-generated if blank" />
         </label>
         <label>
-          <input type="checkbox" checked={isProductionBatch} onChange={(e) => setIsProductionBatch(e.target.checked)} />{" "}
-          production batch
+          <span className="checkbox-label">
+            <input type="checkbox" checked={isProductionBatch} onChange={(e) => setIsProductionBatch(e.target.checked)} />
+            production batch
+          </span>
           <span className="field-hint">
             This package was made through a manufacturing/processing run (e.g. pre-rolls, extract, infused product)
             rather than packaged straight from harvested flower — check this so it's traceable back to that run.
           </span>
         </label>
         <label>
-          <input type="checkbox" checked={isDonation} onChange={(e) => setIsDonation(e.target.checked)} /> donation
+          <span className="checkbox-label">
+            <input type="checkbox" checked={isDonation} onChange={(e) => setIsDonation(e.target.checked)} />
+            donation
+          </span>
           <span className="field-hint">Given away rather than sold — check this for compassionate-care or sample product.</span>
         </label>
         <button disabled={submitting || !currentOperator || !harvestId || !itemName || !weightG || !roomId} onClick={submit}>

@@ -77,10 +77,17 @@ export interface CreateRoomBody {
 
 export type UpdateRoomBody = Partial<CreateRoomBody> & { operator_id: string };
 
+export interface RoomAdapterInfo {
+  id: number;
+  adapter_type: string;
+  adapter_config: Record<string, unknown>;
+}
+
 export interface RoomConfig {
   adapter_type: string;
   metric_config: Record<string, unknown>;
   adapter_config: Record<string, unknown>;
+  extra_adapters: RoomAdapterInfo[];
 }
 
 // Deliberately loose: AlwaysUnlockedGate and CanopyLicenseGate return differently
@@ -162,6 +169,19 @@ export const api = {
       `/api/rooms/${id}?operator_id=${encodeURIComponent(operatorId)}`,
     ),
   getAvailableAdapters: () => getJson<AdapterInfo[]>("/api/rooms/adapters/available"),
+  // A room's primary adapter_type/adapter_config covers one sensor; these cover any
+  // number of *additional* ones polled alongside it and merged into the same
+  // reading each cycle (e.g. a BLE temp/RH controller plus a separate CO2 probe in
+  // the same tent) — see routers/rooms.py's add_room_adapter/remove_room_adapter.
+  addRoomAdapter: (
+    roomId: string,
+    body: { adapter_type: string; adapter_config: Record<string, unknown>; operator_id: string },
+  ) => sendJson<RoomAdapterInfo>("POST", `/api/rooms/${roomId}/adapters`, body),
+  removeRoomAdapter: (roomId: string, adapterId: number, operatorId: string) =>
+    sendJson<{ id: number; deleted: boolean }>(
+      "DELETE",
+      `/api/rooms/${roomId}/adapters/${adapterId}?operator_id=${encodeURIComponent(operatorId)}`,
+    ),
   discoverAdapterDevices: (adapterType: string) =>
     sendJson<DiscoveredDevice[]>("POST", `/api/rooms/adapters/${adapterType}/discover`),
   getLicenseStatus: () => getJson<LicenseStatus>("/api/license/status"),

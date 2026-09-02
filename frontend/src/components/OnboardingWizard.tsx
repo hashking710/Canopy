@@ -9,7 +9,7 @@ import { useCurrentOperator } from "../hooks/useCurrentOperator";
 import { useSubmitState } from "../hooks/useSubmitState";
 import type { Room } from "../types";
 
-type Step = "facility" | "operator" | "jurisdiction" | "room" | "done";
+type Step = "facility" | "operator" | "jurisdiction" | "room" | "license" | "done";
 
 // The guided first-run flow: create a facility, register yourself, pick your
 // compliance jurisdiction, add your first room. Every step reuses the real,
@@ -145,6 +145,39 @@ function RoomStep({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }
   );
 }
 
+// Not a numbered step (unlike the four required/skippable ones above) — a brief
+// nudge shown exactly once, after setup, rather than a gate anything else depends
+// on. Same pitch and same link as the License page's own "unlicensed" card;
+// duplicated intentionally rather than shared, since the two live in genuinely
+// different contexts (a first-run wizard vs. a settled dashboard) and diverging
+// later shouldn't require untangling a shared component.
+function LicenseStep({ onDone }: { onDone: () => void }) {
+  return (
+    <Card>
+      <p className="card-subtitle">You're set up</p>
+      <h3 className="card-title">One last thing — get a free license</h3>
+      <p className="stat-label" style={{ margin: "8px 0 16px" }}>
+        Nothing in Canopy is gated — everything you just set up works with no
+        license at all. Registering a free license (two devices, no card required)
+        is still worth doing: it gives this installation a real customer record,
+        and if you ever add a third device, upgrading later is a one-file swap
+        instead of a fresh setup.
+      </p>
+      <div className="quick-form">
+        <a
+          href="https://canopy.hkdev.run/checkout"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-button"
+        >
+          Get a free license →
+        </a>
+        <button onClick={onDone}>go to dashboard</button>
+      </div>
+    </Card>
+  );
+}
+
 export function OnboardingWizard({ onFinished }: { onFinished: () => void }) {
   const [step, setStep] = useState<Step>("facility");
 
@@ -174,7 +207,11 @@ export function OnboardingWizard({ onFinished }: { onFinished: () => void }) {
   }
 
   if (step === "room") {
-    return <RoomStep onDone={onFinished} onSkip={onFinished} />;
+    return <RoomStep onDone={() => setStep("license")} onSkip={() => setStep("license")} />;
+  }
+
+  if (step === "license") {
+    return <LicenseStep onDone={onFinished} />;
   }
 
   return null;

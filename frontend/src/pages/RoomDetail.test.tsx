@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RoomDetail } from "./RoomDetail";
 import type { Room } from "../types";
 
-const { getRoom, getRoomReadings, deleteRoom, connectLiveUpdates, getOperators } = vi.hoisted(() => ({
+const { getRoom, getRoomReadings, deleteRoom, connectLiveUpdates, getOperators, getRoomConfig } = vi.hoisted(() => ({
   getRoom: vi.fn(),
   getRoomReadings: vi.fn(),
   deleteRoom: vi.fn(),
   connectLiveUpdates: vi.fn((..._args: unknown[]) => () => {}),
   getOperators: vi.fn(),
+  getRoomConfig: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
@@ -18,6 +19,9 @@ vi.mock("../api/client", () => ({
     getRoom: (...args: unknown[]) => getRoom(...args),
     getRoomReadings: (...args: unknown[]) => getRoomReadings(...args),
     deleteRoom: (...args: unknown[]) => deleteRoom(...args),
+    // ExtraAdaptersCard (rendered unconditionally on this page) fetches its own
+    // extra-adapter list independently of everything else here.
+    getRoomConfig: (...args: unknown[]) => getRoomConfig(...args),
   },
   connectLiveUpdates: (...args: unknown[]) => connectLiveUpdates(...args),
 }));
@@ -60,6 +64,7 @@ describe("RoomDetail — delete failure must not blank the page", () => {
     getRoom.mockResolvedValue(room);
     getRoomReadings.mockResolvedValue([]);
     getOperators.mockResolvedValue([{ id: "op-1", name: "Admin Operator", role: "admin", has_pin: false }]);
+    getRoomConfig.mockResolvedValue({ adapter_type: "mock", metric_config: {}, adapter_config: {}, extra_adapters: [] });
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -113,6 +118,7 @@ describe("RoomDetail — live connection", () => {
     getRoom.mockResolvedValue(roomWithStats);
     getRoomReadings.mockResolvedValue([]);
     getOperators.mockResolvedValue([{ id: "op-1", name: "Admin Operator", role: "admin", has_pin: false }]);
+    getRoomConfig.mockResolvedValue({ adapter_type: "mock", metric_config: {}, adapter_config: {}, extra_adapters: [] });
   });
 
   it("opens exactly one live connection and does not reopen it when switching metric tabs", async () => {
