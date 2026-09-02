@@ -38,42 +38,57 @@ def _require_admin_operator(db: Session, operator_id: str, pin: str | None) -> N
     require_role(operator, "admin")
 
 
-def _known_secret_keys() -> dict[str, str]:
-    """key -> description, aggregated from every *installed* sensor adapter's,
-    compliance-sync plugin's, and menu-sync plugin's required_env_vars — the same
-    source the room-creation UI's EnvVarNotice already reads from, so this list only
-    ever contains credentials something actually installed can use. Not a
+def _known_secrets() -> dict[str, dict[str, str]]:
+    """key -> {description, plugin_name}, aggregated from every *installed* sensor
+    adapter's, compliance-sync plugin's, and menu-sync plugin's required_env_vars —
+    the same source the room-creation UI's EnvVarNotice already reads from, so this
+    list only ever contains credentials something actually installed can use. Not a
     general-purpose env var editor: routers below reject any key not found here.
     This is also how Weedmaps/mock menu-sync credentials show up in the dashboard's
     credentials settings without a dedicated integrations UI of their own — see
-    menu_sync/base.py's own docstring."""
-    known: dict[str, str] = {}
+    menu_sync/base.py's own docstring.
+
+    `plugin_name` exists so the frontend can group what's become a genuinely long,
+    flat list (a dozen-plus adapters, each with 1-3 credentials) by vendor instead
+    of one undifferentiated alphabetical wall of rows — see Settings.tsx's
+    CredentialsCard."""
+    known: dict[str, dict[str, str]] = {}
     for adapter_cls in available_adapter_types().values():
-        known.update(adapter_cls.required_env_vars)
+        for key, description in adapter_cls.required_env_vars.items():
+            known[key] = {"description": description, "plugin_name": adapter_cls.plugin_name}
     for sync_cls in available_sync_types().values():
-        known.update(sync_cls.required_env_vars)
+        for key, description in sync_cls.required_env_vars.items():
+            known[key] = {"description": description, "plugin_name": sync_cls.plugin_name}
     for menu_sync_cls in available_menu_sync_types().values():
-        known.update(menu_sync_cls.required_env_vars)
+        for key, description in menu_sync_cls.required_env_vars.items():
+            known[key] = {"description": description, "plugin_name": menu_sync_cls.plugin_name}
     return known
+
+
+def _known_secret_keys() -> dict[str, str]:
+    """key -> description only — used by the PUT/DELETE routers below, which only
+    need to validate a key is known, not which plugin it belongs to."""
+    return {key: info["description"] for key, info in _known_secrets().items()}
 
 
 @router.get("")
 def list_secrets(db: Session = Depends(get_db)) -> list[dict]:
     """Never returns a value — only whether each known credential is currently set
     (from the database or, as a fallback, an env var set outside the app, e.g. via
-    docker-compose.yml) and which plugin(s) need it, so the dashboard can show a
-    clear "needs setup" / "configured" state without ever exposing the secret
+    docker-compose.yml), which plugin needs it, so the dashboard can group and show
+    a clear "needs setup" / "configured" state without ever exposing the secret
     itself back over the API."""
-    known = _known_secret_keys()
+    known = _known_secrets()
     stored_keys = set(db.execute(select(FacilitySecret.key)).scalars().all())
     return [
         {
             "key": key,
-            "description": description,
+            "description": info["description"],
+            "plugin_name": info["plugin_name"],
             "is_set": key in stored_keys or bool(os.environ.get(key)),
             "set_via_dashboard": key in stored_keys,
         }
-        for key, description in sorted(known.items())
+        for key, info in sorted(known.items(), key=lambda item: (item[1]["plugin_name"], item[0]))
     ]
 
 

@@ -464,13 +464,12 @@ button {
 
 .stat-grid {
   display: grid;
+  /* grid-template-columns is set inline per-instance (see StatGrid.tsx) — the
+     count varies per room's own metric_config, chosen to avoid orphaning a lone
+     cell on its own row. This is just a sane fallback if that's ever omitted. */
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px 14px;
   margin: 22px 0;
-}
-
-.stat-grid.cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .retail-rules-grid {

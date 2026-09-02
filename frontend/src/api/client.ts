@@ -109,6 +109,7 @@ export interface BackupStatus {
 export interface SecretInfo {
   key: string;
   description: string;
+  plugin_name: string;
   is_set: boolean;
   set_via_dashboard: boolean;
 }

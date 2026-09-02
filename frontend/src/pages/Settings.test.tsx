@@ -185,6 +185,7 @@ describe("Settings", () => {
     const goveeSecret = {
       key: "CANOPY_GOVEE_API_KEY",
       description: "API key requested in the Govee Home app",
+      plugin_name: "Govee (Cloud API)",
       is_set: false,
       set_via_dashboard: false,
     };

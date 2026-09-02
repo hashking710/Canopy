@@ -213,6 +213,22 @@ function SecretRow({
   );
 }
 
+// The backend already returns secrets pre-sorted by (plugin_name, key) — see
+// routers/secrets.py's list_secrets() — so grouping here is just "start a new
+// section whenever plugin_name changes," no client-side re-sorting needed.
+function groupByPlugin(secrets: SecretInfo[]): { pluginName: string; secrets: SecretInfo[] }[] {
+  const groups: { pluginName: string; secrets: SecretInfo[] }[] = [];
+  for (const secret of secrets) {
+    const current = groups[groups.length - 1];
+    if (current && current.pluginName === secret.plugin_name) {
+      current.secrets.push(secret);
+    } else {
+      groups.push({ pluginName: secret.plugin_name, secrets: [secret] });
+    }
+  }
+  return groups;
+}
+
 function CredentialsCard() {
   const [secrets, setSecrets] = useState<SecretInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -253,9 +269,17 @@ function CredentialsCard() {
         onOperatorDeactivated={handleOperatorDeactivated}
       />
       {!secrets && <p className="stat-label">Loading…</p>}
-      {secrets?.map((s) => (
-        <SecretRow key={s.key} secret={s} currentOperator={currentOperator} onChange={refresh} />
-      ))}
+      {secrets &&
+        groupByPlugin(secrets).map((group) => (
+          <div key={group.pluginName} className="field-block">
+            <p className="card-subtitle" style={{ margin: "0 0 4px", fontWeight: 600 }}>
+              {group.pluginName}
+            </p>
+            {group.secrets.map((s) => (
+              <SecretRow key={s.key} secret={s} currentOperator={currentOperator} onChange={refresh} />
+            ))}
+          </div>
+        ))}
     </Card>
   );
 }

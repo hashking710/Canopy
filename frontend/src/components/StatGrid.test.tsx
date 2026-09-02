@@ -30,15 +30,21 @@ describe("StatGrid", () => {
     expect(screen.getByText("press psi")).toBeInTheDocument();
   });
 
-  it("uses the 2-column layout for two or fewer stats", () => {
-    const { container } = render(<StatGrid stats={[metric({}), metric({ key: "rh_pct" })]} />);
-    expect(container.querySelector(".stat-grid")).toHaveClass("cols-2");
-  });
-
-  it("uses the default 3-column layout for more than two stats", () => {
-    const { container } = render(
-      <StatGrid stats={[metric({}), metric({ key: "rh_pct" }), metric({ key: "vpd_kpa" })]} />,
-    );
-    expect(container.querySelector(".stat-grid")).not.toHaveClass("cols-2");
+  // The column count is chosen to keep every row balanced (2+ items) rather than
+  // a fixed count that can orphan a lone cell on its own row — e.g. a naive fixed
+  // 3-column grid renders 4 stats as a row of 3 then a single leftover cell.
+  it.each([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 2], // 2x2, not 3+1
+    [5, 3], // 3+2, not a 5-wide single row
+    [6, 3], // 3+3
+    [7, 4], // 4+3, not 3+3+1
+  ])("uses %i column(s) for %i stat(s)", (count, expectedColumns) => {
+    const stats = Array.from({ length: count }, (_, i) => metric({ key: `metric-${i}` }));
+    const { container } = render(<StatGrid stats={stats} />);
+    const grid = container.querySelector(".stat-grid") as HTMLElement;
+    expect(grid.style.gridTemplateColumns).toBe(`repeat(${expectedColumns}, minmax(0, 1fr))`);
   });
 });

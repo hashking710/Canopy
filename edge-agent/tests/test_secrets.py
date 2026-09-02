@@ -36,6 +36,21 @@ def test_list_secrets_never_returns_the_value(client):
         assert "value" not in entry
 
 
+def test_list_secrets_includes_which_plugin_needs_each_key(client):
+    """Lets the dashboard group a long, flat credential list by vendor instead of
+    one undifferentiated alphabetical wall of rows — see Settings.tsx's
+    CredentialsCard."""
+    resp = client.get("/api/secrets")
+    entry = next(s for s in resp.json() if s["key"] == REAL_KEY)
+    assert entry["plugin_name"] == "Govee (Cloud API)"
+
+
+def test_list_secrets_is_sorted_by_plugin_then_key(client):
+    entries = client.get("/api/secrets").json()
+    sort_keys = [(e["plugin_name"], e["key"]) for e in entries]
+    assert sort_keys == sorted(sort_keys)
+
+
 def test_unset_secret_reports_not_set(client):
     os.environ.pop(REAL_KEY, None)
     resp = client.get("/api/secrets")
