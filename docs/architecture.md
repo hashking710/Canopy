@@ -9,9 +9,16 @@ real, working facility is a real, tested flow, not a manual DB-editing workaroun
 
 - **`POST /api/facility`** — one-time, creates the singleton facility row (fixed
   `id="facility"`, not user-supplied — `GET /api/facility` looks it up by that exact
-  id). Rejects a second call once one exists. Frontend: `SetupFacilityForm`, shown
-  automatically by `FacilityOverview` in place of the dashboard whenever
-  `GET /api/facility` 404s.
+  id). Rejects a second call once one exists. Frontend: `OnboardingWizard`
+  (`frontend/src/components/OnboardingWizard.tsx`), shown automatically by
+  `FacilityOverview` in place of the dashboard whenever `GET /api/facility` 404s —
+  a real guided first-run flow (facility → register yourself as an operator → set
+  your compliance jurisdiction → add your first room), replacing an earlier version
+  that was just a bare single-field facility-name form with no further guidance.
+  Every step past facility creation is skippable/deferrable and reuses the same
+  already-built, already-role-gated forms the rest of the app uses (`OperatorPicker`,
+  the Compliance page's jurisdiction picker, `AddRoomForm`) — this component only
+  sequences them, it doesn't reimplement any of their logic or gating.
 - **`POST /api/rooms`**, **`PUT /api/rooms/{id}`**, **`DELETE /api/rooms/{id}`** —
   full room CRUD. Validates the room id against a safe slug pattern, that
   `metric_config` entries have a `label` (and, specifically for the mock adapter,
