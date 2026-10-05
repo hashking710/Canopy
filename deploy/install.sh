@@ -15,8 +15,7 @@
 
 set -euo pipefail
 
-# Placeholder until this repo has a real GitHub remote — update this (or pass
-# CANOPY_REPO) once it's pushed.
+# Default GitHub repository; override with CANOPY_REPO for forks or self-hosted releases.
 REPO="${CANOPY_REPO:-hashking710/Canopy}"
 INSTALL_DIR="${CANOPY_INSTALL_DIR:-/opt/canopy}"
 VERSION="${CANOPY_VERSION:-latest}"

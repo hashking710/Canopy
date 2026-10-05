@@ -2,12 +2,19 @@
 
 Drives the real app in a real browser — not dev servers, the same containers the
 Docker Compose stack serves. These specs assume `edge-agent` + `frontend` are already
-up and reachable at `localhost:8000` / `localhost:5173`.
+up and reachable at `localhost:8000` / `localhost:5173`. Set
+`CANOPY_E2E_API_BASE_URL`, `CANOPY_E2E_BASE_URL`, and
+`CANOPY_E2E_MASTER_API_BASE_URL` to override those endpoints when testing an
+isolated stack.
 
 ```
-docker compose up -d --build edge-agent frontend
+CANOPY_RATE_LIMIT_PER_MINUTE=10000 docker compose up -d --build edge-agent frontend
 npm run e2e
 ```
+
+The rate-limit override is for the browser suite only; it leaves the default
+120-request/minute limit unchanged for normal deployments. In PowerShell, set
+`$env:CANOPY_RATE_LIMIT_PER_MINUTE = "10000"` before running the Compose command.
 
 Specs share one running facility/database rather than each getting a fresh one, so
 they avoid depending on exact pre-existing data where possible (creating their own

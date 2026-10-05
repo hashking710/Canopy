@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { selectOptionContaining } from "./helpers";
-
-const API_BASE = "http://localhost:8000";
+import { API_BASE, selectOptionContaining } from "./helpers";
 
 test("tagging plants from a batch moves them into the tagged-plants table", async ({ page }) => {
   const batches = await (await page.request.get(`${API_BASE}/api/compliance/plant-batches`)).json();

@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { selectOptionContaining } from "./helpers";
-
-const API_BASE = "http://localhost:8000";
+import { API_BASE, selectOptionContaining } from "./helpers";
 
 // The seeded default operator (Alex Rivera) has a PIN configured, which the compliance
 // router correctly requires for waste-logging and plant destruction — rather than
@@ -13,7 +11,7 @@ async function switchToAPinlessOperator(page: import("@playwright/test").Page) {
   await page.getByText("+ add operator").click();
   await page.getByPlaceholder("name").fill(name);
   await page.getByRole("button", { name: "save" }).click();
-  await page.locator(".operator-picker select").selectOption({ label: name });
+  await selectOptionContaining(page.getByLabel("signed in as"), name);
 }
 
 test("logging waste against a real package appears in the waste log", async ({ page }) => {

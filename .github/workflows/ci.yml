@@ -198,7 +198,7 @@ jobs:
       # same images/Dockerfiles as production, matching how these specs are meant to
       # be run (see frontend/e2e/README.md).
       - name: Start edge-agent + frontend
-        run: docker compose up -d --build edge-agent frontend
+        run: CANOPY_RATE_LIMIT_PER_MINUTE=10000 docker compose up -d --build edge-agent frontend
 
       - name: Wait for edge-agent to be healthy
         run: |

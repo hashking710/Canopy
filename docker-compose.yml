@@ -39,6 +39,7 @@ services:
       # left out of the default mount list so `docker compose up` never creates an
       # unused ./license directory for the vast majority of installs that skip this.
       - CANOPY_LICENSE_FILE=${CANOPY_LICENSE_FILE:-}
+      - CANOPY_RATE_LIMIT_PER_MINUTE=${CANOPY_RATE_LIMIT_PER_MINUTE:-120}
     volumes: ["edge-agent-data:/data"]
     restart: unless-stopped
 

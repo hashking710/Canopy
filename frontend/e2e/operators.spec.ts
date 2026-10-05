@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectOptionContaining } from "./helpers";
 
 test("adding an operator, resetting their PIN, and deactivating them all round-trip", async ({ page }) => {
   const name = `E2E Operator ${Date.now()}`;
@@ -10,9 +11,9 @@ test("adding an operator, resetting their PIN, and deactivating them all round-t
   await page.getByPlaceholder("PIN (optional)").fill("1234");
   await page.getByRole("button", { name: "save" }).click();
 
-  const picker = page.locator(".operator-picker select");
+  const picker = page.getByLabel("signed in as");
   await expect(picker.locator("option", { hasText: name })).toHaveCount(1);
-  await picker.selectOption({ label: `${name} (PIN)` });
+  await selectOptionContaining(picker, name);
 
   await page.getByRole("button", { name: "manage" }).click();
   await page.getByRole("button", { name: "reset PIN" }).click();

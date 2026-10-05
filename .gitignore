@@ -22,5 +22,5 @@ plugins/**/__pycache__/
 plugins/**/*.egg-info/
 plugins/**/.venv/
 
-# Local Claude Code tool-permission history — machine-specific, not project config.
+# Local coding-assistant tool-permission history — machine-specific, not project config.
 .claude/

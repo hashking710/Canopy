@@ -124,6 +124,17 @@ async def _report_unhandled_exception(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "internal server error"})
 
 
+# Always mounted, not just in demo mode — the general limit is generous enough
+# (120/min per IP by default, see services/rate_limit.py) to never brush against
+# real dashboard usage, but a real deployment reachable beyond a pure LAN (see
+# docs/deployment-tls.md) had no rate limiting at all before this. Demo mode gets a
+# tighter general cap, since it's deliberately publicly writable, on top of the
+# same auth-failure throttle every deployment gets.
+_rate_limit_kwargs = {"general_limit": 60} if DEMO_MODE else {}
+app.add_middleware(RateLimitMiddleware, **_rate_limit_kwargs)
+
+# Add CORS after rate limiting so preflight and throttled responses both receive
+# the headers browsers need to report the actual API status instead of "Failed to fetch".
 app.add_middleware(
     CORSMiddleware,
     # A public demo's frontend/API pair are served from a different port locally
@@ -135,15 +146,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Always mounted, not just in demo mode — the general limit is generous enough
-# (120/min per IP by default, see services/rate_limit.py) to never brush against
-# real dashboard usage, but a real deployment reachable beyond a pure LAN (see
-# docs/deployment-tls.md) had no rate limiting at all before this. Demo mode gets a
-# tighter general cap, since it's deliberately publicly writable, on top of the
-# same auth-failure throttle every deployment gets.
-_rate_limit_kwargs = {"general_limit": 60} if DEMO_MODE else {}
-app.add_middleware(RateLimitMiddleware, **_rate_limit_kwargs)
 
 app.include_router(facility.router, dependencies=[Depends(require_token)])
 app.include_router(rooms.router, dependencies=[Depends(require_token)])

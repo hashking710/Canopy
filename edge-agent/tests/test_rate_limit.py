@@ -2,6 +2,7 @@ import time
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.middleware.cors import CORSMiddleware
 
 from canopy_agent.services.rate_limit import RateLimitMiddleware
 
@@ -52,6 +53,29 @@ def test_blocks_requests_over_the_general_limit_with_429():
     blocked = client.get("/ping")
     assert blocked.status_code == 429
     assert "Retry-After" in blocked.headers
+
+
+def test_cors_headers_are_preserved_on_rate_limited_responses():
+    app = FastAPI()
+    app.add_middleware(RateLimitMiddleware, general_limit=1)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.get("/ping")
+    def ping() -> dict[str, bool]:
+        return {"ok": True}
+
+    client = TestClient(app)
+    headers = {"Origin": "http://localhost:5173"}
+    assert client.get("/ping", headers=headers).status_code == 200
+
+    blocked = client.get("/ping", headers=headers)
+    assert blocked.status_code == 429
+    assert blocked.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
 def test_tracks_distinct_ips_independently():
